@@ -236,7 +236,7 @@ parse_program_args(int argc, char *argv[], struct authmod_params *amp)
  * Result must be freed after use.
  */
 static char *
-get_username()
+get_username(void)
 {
     int uid = g_getuid();
     char *this_user;

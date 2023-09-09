@@ -922,7 +922,7 @@ xrdp_egfx_open_response(intptr_t id, int chan_id, int creation_status)
     return 0;
 }
 
-int
+extern int
 advance_resize_state_machine(struct xrdp_mm *mm,
                              enum display_resize_state new_state);
 

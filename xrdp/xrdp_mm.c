@@ -1537,7 +1537,7 @@ dynamic_monitor_process_queue(struct xrdp_mm *self)
 }
 
 /******************************************************************************/
-int
+static int
 dynamic_monitor_initialize(struct xrdp_mm *self)
 {
     struct xrdp_drdynvc_procs d_procs;

@@ -17,8 +17,8 @@
  */
 
 /* FUSE mount point */
-char g_fuse_root_path[256] = "";
 #ifdef XRDP_FUSE
+static char g_fuse_root_path[256] = "";
 static const char *g_fuse_root_path_basename; /* See xfuse_path_in_xfuse_fs() */
 static int g_fuse_root_parent_dev;   /* Ditto */
 static int g_fuse_root_parent_ino;   /* Ditto */
