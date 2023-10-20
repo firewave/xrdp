@@ -290,7 +290,7 @@ xrdp_font_create(struct xrdp_wm *wm, unsigned int dpi)
                 in_uint8s(s, 6);
                 datasize = FONT_DATASIZE(f);
 
-                if (datasize < 0 || datasize > 512)
+                if (datasize > 512)
                 {
                     /* shouldn't happen */
                     LOG(LOG_LEVEL_ERROR,
