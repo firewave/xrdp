@@ -81,9 +81,9 @@ time_t g_last_connect_disconnect;
 /*
  * Module-scope globals
  */
-static pid_t g_ecp_pid;
-static int g_terminate_loop = 0;
-static int g_terminate_status = 0;
+static pid_t s_ecp_pid;
+static int s_terminate_loop = 0;
+static int s_terminate_status = 0;
 
 /*****************************************************************************/
 /**
@@ -238,7 +238,7 @@ set_sigchld_event(int sig)
 int
 sesexec_is_term(void)
 {
-    return g_terminate_loop || g_is_wait_obj_set(g_term_event);
+    return s_terminate_loop || g_is_wait_obj_set(g_term_event);
 }
 
 /******************************************************************************/
@@ -246,10 +246,10 @@ void
 sesexec_terminate_main_loop(int status)
 {
     // Only take the first request to terminate the loop
-    if (!g_terminate_loop)
+    if (!s_terminate_loop)
     {
-        g_terminate_loop = 1;
-        g_terminate_status = status;
+        s_terminate_loop = 1;
+        s_terminate_status = status;
     }
 }
 
@@ -266,7 +266,7 @@ sesexec_set_ecp_transport(struct trans *t)
     {
         trans_delete(g_ecp_trans);
         g_ecp_trans = NULL;
-        g_ecp_pid = 0;
+        s_ecp_pid = 0;
         rv = 0;
     }
     else if (t == g_ecp_trans)
@@ -290,7 +290,7 @@ sesexec_set_ecp_transport(struct trans *t)
     {
         trans_delete(g_ecp_trans);
         g_ecp_trans = t;
-        g_ecp_pid = pid;
+        s_ecp_pid = pid;
         rv = 0;
     }
 
@@ -302,7 +302,7 @@ int
 sesexec_is_ecp_active(void)
 {
     return (g_ecp_trans != NULL &&
-            g_ecp_pid != 0 && g_pid_is_active(g_ecp_pid));
+            s_ecp_pid != 0 && g_pid_is_active(s_ecp_pid));
 
 }
 
@@ -352,11 +352,11 @@ sesexec_main_loop(void)
     int robjs_count;
     intptr_t robjs[MAX_ROBJS];
 
-    g_terminate_loop = 0;
-    g_terminate_status = 0;
+    s_terminate_loop = 0;
+    s_terminate_status = 0;
     g_login_info = NULL;
 
-    while (!g_terminate_loop)
+    while (!s_terminate_loop)
     {
         robjs_count = 0;
         robjs[robjs_count++] = g_term_event;
@@ -534,7 +534,7 @@ sesexec_main_loop(void)
      * closing, in which case this call has no effect */
     sesexec_terminate_connected_xrdp_process(CCP_CLOSE_SOFTWARE_FAILURE);
 
-    return g_terminate_status;
+    return s_terminate_status;
 }
 
 /******************************************************************************/

@@ -28,7 +28,7 @@
 #include "string_calls.h"
 
 /* some compilers need unsigned char to avoid warnings */
-static tui8 g_pad_54[40] =
+static tui8 s_pad[40] =
 {
     54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54,
     54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54,
@@ -36,14 +36,14 @@ static tui8 g_pad_54[40] =
 };
 
 /* some compilers need unsigned char to avoid warnings */
-static tui8 g_pad_92[48] =
+static tui8 s_pad_92[48] =
 {
     92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92,
     92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92,
     92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92
 };
 
-static const tui8 g_fips_reverse_table[256] =
+static const tui8 s_fips_reverse_table[256] =
 {
     0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
     0x10, 0x90, 0x50, 0xd0, 0x30, 0xb0, 0x70, 0xf0,
@@ -79,7 +79,7 @@ static const tui8 g_fips_reverse_table[256] =
     0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
 };
 
-static const tui8 g_fips_oddparity_table[256] =
+static const tui8 s_fips_oddparity_table[256] =
 {
     0x01, 0x01, 0x02, 0x02, 0x04, 0x04, 0x07, 0x07,
     0x08, 0x08, 0x0b, 0x0b, 0x0d, 0x0d, 0x0e, 0x0e,
@@ -115,7 +115,7 @@ static const tui8 g_fips_oddparity_table[256] =
     0xf8, 0xf8, 0xfb, 0xfb, 0xfd, 0xfd, 0xfe, 0xfe
 };
 
-static const tui8 g_fips_ivec[8] =
+static const tui8 s_fips_ivec[8] =
 {
     0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF
 };
@@ -258,12 +258,12 @@ xrdp_sec_update(char *key, char *update_key, int key_len)
     rc4_info = ssl_rc4_info_create();
     ssl_sha1_clear(sha1_info);
     ssl_sha1_transform(sha1_info, update_key, key_len);
-    ssl_sha1_transform(sha1_info, (char *)g_pad_54, 40);
+    ssl_sha1_transform(sha1_info, (char *)s_pad, 40);
     ssl_sha1_transform(sha1_info, key, key_len);
     ssl_sha1_complete(sha1_info, shasig);
     ssl_md5_clear(md5_info);
     ssl_md5_transform(md5_info, update_key, key_len);
-    ssl_md5_transform(md5_info, (char *)g_pad_92, 48);
+    ssl_md5_transform(md5_info, (char *)s_pad_92, 48);
     ssl_md5_transform(md5_info, shasig, 20);
     ssl_md5_complete(md5_info, key);
     ssl_rc4_set_key(rc4_info, key, key_len);
@@ -862,7 +862,7 @@ fips_expand_key_bits(const char *in, char *out)
     for (i = 0; i < 21; i++)
     {
         c = in[i];
-        buf[i] = g_fips_reverse_table[c];
+        buf[i] = s_fips_reverse_table[c];
     }
     /* insert a zero-bit after every 7th bit */
     for (i = 0, b = 0; i < 24; i++, b += 7)
@@ -886,8 +886,8 @@ fips_expand_key_bits(const char *in, char *out)
     for (i = 0; i < 24; i++)
     {
         c = out[i];
-        c = g_fips_reverse_table[c];
-        out[i] = g_fips_oddparity_table[c];
+        c = s_fips_reverse_table[c];
+        out[i] = s_fips_oddparity_table[c];
     }
 }
 
@@ -928,7 +928,7 @@ xrdp_sec_fips_establish_keys(struct xrdp_sec *self)
     ssl_sha1_complete(sha1, self->fips_sign_key);
     ssl_sha1_info_delete(sha1);
 
-    fips_ivec = (const char *) g_fips_ivec;
+    fips_ivec = (const char *) s_fips_ivec;
     self->encrypt_fips_info =
         ssl_des3_encrypt_info_create(self->fips_encrypt_key, fips_ivec);
     self->decrypt_fips_info =
@@ -1260,13 +1260,13 @@ xrdp_sec_sign(struct xrdp_sec *self, char *out, int out_len,
     md5_info = ssl_md5_info_create();
     ssl_sha1_clear(sha1_info);
     ssl_sha1_transform(sha1_info, self->sign_key, self->rc4_key_len);
-    ssl_sha1_transform(sha1_info, (char *)g_pad_54, 40);
+    ssl_sha1_transform(sha1_info, (char *)s_pad, 40);
     ssl_sha1_transform(sha1_info, lenhdr, 4);
     ssl_sha1_transform(sha1_info, data, data_len);
     ssl_sha1_complete(sha1_info, shasig);
     ssl_md5_clear(md5_info);
     ssl_md5_transform(md5_info, self->sign_key, self->rc4_key_len);
-    ssl_md5_transform(md5_info, (char *)g_pad_92, 48);
+    ssl_md5_transform(md5_info, (char *)s_pad_92, 48);
     ssl_md5_transform(md5_info, shasig, 20);
     ssl_md5_complete(md5_info, md5sig);
     g_memcpy(out, md5sig, out_len);

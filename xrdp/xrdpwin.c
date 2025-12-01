@@ -27,23 +27,23 @@
 #endif
 #include "xrdp.h"
 
-static struct xrdp_listen *g_listen = 0;
-static long g_threadid = 0; /* main threadid */
+static struct xrdp_listen *s_listen = 0;
+static long s_threadid = 0; /* main threadid */
 
 #if defined(_WIN32)
-static SERVICE_STATUS_HANDLE g_ssh = 0;
-static SERVICE_STATUS g_service_status;
+static SERVICE_STATUS_HANDLE s_ssh = 0;
+static SERVICE_STATUS s_service_status;
 #endif
-static long g_sync_mutex = 0;
-static long g_sync1_mutex = 0;
-static tbus g_term_event = 0;
-static tbus g_sync_event = 0;
+static long s_sync_mutex = 0;
+static long s_sync_mutex = 0;
+static tbus s_term_event = 0;
+static tbus s_sync_event = 0;
 /* synchronize stuff */
-static int g_sync_command = 0;
-static long g_sync_result = 0;
-static long g_sync_param1 = 0;
-static long g_sync_param2 = 0;
-static long (*g_sync_func)(long param1, long param2);
+static int s_sync_command = 0;
+static long s_sync_result = 0;
+static long s_sync_param1 = 0;
+static long s_sync_param2 = 0;
+static long (*s_sync_func)(long param1, long param2);
 
 /*****************************************************************************/
 long
@@ -53,7 +53,7 @@ g_xrdp_sync(long (*sync_func)(long param1, long param2), long sync_param1,
     long sync_result;
     int sync_command;
 
-    if (tc_threadid_equal(tc_get_threadid(), g_threadid))
+    if (tc_threadid_equal(tc_get_threadid(), s_threadid))
     {
         /* this is the main thread, call the function directly */
         sync_result = sync_func(sync_param1, sync_param2);
@@ -61,21 +61,21 @@ g_xrdp_sync(long (*sync_func)(long param1, long param2), long sync_param1,
     else
     {
         tc_mutex_lock(g_sync1_mutex);
-        tc_mutex_lock(g_sync_mutex);
-        g_sync_param1 = sync_param1;
-        g_sync_param2 = sync_param2;
-        g_sync_func = sync_func;
-        g_sync_command = 100;
-        tc_mutex_unlock(g_sync_mutex);
-        g_set_wait_obj(g_sync_event);
+        tc_mutex_lock(s_sync_mutex);
+        s_sync_param1 = sync_param1;
+        s_sync_param2 = sync_param2;
+        s_sync_func = sync_func;
+        s_sync_command = 100;
+        tc_mutex_unlock(s_sync_mutex);
+        g_set_wait_obj(s_sync_event);
 
         do
         {
             g_sleep(100);
-            tc_mutex_lock(g_sync_mutex);
-            sync_command = g_sync_command;
-            sync_result = g_sync_result;
-            tc_mutex_unlock(g_sync_mutex);
+            tc_mutex_lock(s_sync_mutex);
+            sync_command = s_sync_command;
+            sync_result = s_sync_result;
+            tc_mutex_unlock(s_sync_mutex);
         }
         while (sync_command != 0);
 
@@ -95,9 +95,9 @@ xrdp_shutdown(int sig)
     g_writeln("shutting down");
     g_writeln("signal %d threadid %p", sig, threadid);
 
-    if (!g_is_wait_obj_set(g_term_event))
+    if (!g_is_wait_obj_set(s_term_event))
     {
-        g_set_wait_obj(g_term_event);
+        g_set_wait_obj(s_term_event);
     }
 }
 
@@ -105,7 +105,7 @@ xrdp_shutdown(int sig)
 int
 g_is_term(void)
 {
-    return g_is_wait_obj_set(g_term_event);
+    return g_is_wait_obj_set(s_term_event);
 }
 
 /*****************************************************************************/
@@ -114,11 +114,11 @@ g_set_term(int in_val)
 {
     if (in_val)
     {
-        g_set_wait_obj(g_term_event);
+        g_set_wait_obj(s_term_event);
     }
     else
     {
-        g_reset_wait_obj(g_term_event);
+        g_reset_wait_obj(s_term_event);
     }
 }
 
@@ -126,7 +126,7 @@ g_set_term(int in_val)
 tbus
 g_get_sync_event(void)
 {
-    return g_sync_event;
+    return s_sync_event;
 }
 
 /*****************************************************************************/
@@ -141,22 +141,22 @@ pipe_sig(int sig_num)
 void
 g_process_waiting_function(void)
 {
-    tc_mutex_lock(g_sync_mutex);
+    tc_mutex_lock(s_sync_mutex);
 
-    if (g_sync_command != 0)
+    if (s_sync_command != 0)
     {
-        if (g_sync_func != 0)
+        if (s_sync_func != 0)
         {
-            if (g_sync_command == 100)
+            if (s_sync_command == 100)
             {
-                g_sync_result = g_sync_func(g_sync_param1, g_sync_param2);
+                s_sync_result = s_sync_func(s_sync_param1, s_sync_param2);
             }
         }
 
-        g_sync_command = 0;
+        s_sync_command = 0;
     }
 
-    tc_mutex_unlock(g_sync_mutex);
+    tc_mutex_unlock(s_sync_mutex);
 }
 
 /* win32 service control functions */
@@ -166,14 +166,14 @@ g_process_waiting_function(void)
 VOID WINAPI
 MyHandler(DWORD fdwControl)
 {
-    if (g_ssh == 0)
+    if (s_ssh == 0)
     {
         return;
     }
 
     if (fdwControl == SERVICE_CONTROL_STOP)
     {
-        g_service_status.dwCurrentState = SERVICE_STOP_PENDING;
+        s_service_status.dwCurrentState = SERVICE_STOP_PENDING;
         g_set_term(1);
     }
     else if (fdwControl == SERVICE_CONTROL_PAUSE)
@@ -189,11 +189,11 @@ MyHandler(DWORD fdwControl)
     }
     else if (fdwControl == SERVICE_CONTROL_SHUTDOWN)
     {
-        g_service_status.dwCurrentState = SERVICE_STOP_PENDING;
+        s_service_status.dwCurrentState = SERVICE_STOP_PENDING;
         g_set_term(1);
     }
 
-    SetServiceStatus(g_ssh, &g_service_status);
+    SetServiceStatus(s_ssh, &s_service_status);
 }
 
 /*****************************************************************************/
@@ -218,41 +218,41 @@ MyServiceMain(DWORD dwArgc, LPTSTR *lpszArgv)
     //  g_file_write(fd, "hi\r\n", 4);
     //event_han = RegisterEventSource(0, "xrdp");
     //log_event(event_han, "hi xrdp log");
-    g_threadid = tc_get_threadid();
+    s_threadid = tc_get_threadid();
     g_set_current_dir("c:\\temp\\xrdp");
-    g_listen = 0;
+    s_listen = 0;
     WSAStartup(2, &w);
-    g_sync_mutex = tc_mutex_create();
+    s_sync_mutex = tc_mutex_create();
     g_sync1_mutex = tc_mutex_create();
     pid = g_getpid();
     g_snprintf(text, 255, "xrdp_%8.8x_main_term", pid);
-    g_term_event = g_create_wait_obj(text);
+    s_term_event = g_create_wait_obj(text);
     g_snprintf(text, 255, "xrdp_%8.8x_main_sync", pid);
-    g_sync_event = g_create_wait_obj(text);
-    g_memset(&g_service_status, 0, sizeof(SERVICE_STATUS));
-    g_service_status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-    g_service_status.dwCurrentState = SERVICE_RUNNING;
-    g_service_status.dwControlsAccepted = SERVICE_CONTROL_INTERROGATE |
+    s_sync_event = g_create_wait_obj(text);
+    g_memset(&s_service_status, 0, sizeof(SERVICE_STATUS));
+    s_service_status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    s_service_status.dwCurrentState = SERVICE_RUNNING;
+    s_service_status.dwControlsAccepted = SERVICE_CONTROL_INTERROGATE |
                                           SERVICE_ACCEPT_STOP |
                                           SERVICE_ACCEPT_SHUTDOWN;
-    g_service_status.dwWin32ExitCode = NO_ERROR;
-    g_service_status.dwServiceSpecificExitCode = 0;
-    g_service_status.dwCheckPoint = 0;
-    g_service_status.dwWaitHint = 0;
+    s_service_status.dwWin32ExitCode = NO_ERROR;
+    s_service_status.dwServiceSpecificExitCode = 0;
+    s_service_status.dwCheckPoint = 0;
+    s_service_status.dwWaitHint = 0;
     //  g_sprintf(text, "calling RegisterServiceCtrlHandler\r\n");
     //  g_file_write(fd, text, g_strlen(text));
-    g_ssh = RegisterServiceCtrlHandler("xrdp", MyHandler);
+    s_ssh = RegisterServiceCtrlHandler("xrdp", MyHandler);
 
-    if (g_ssh != 0)
+    if (s_ssh != 0)
     {
         //    g_sprintf(text, "ok\r\n");
         //    g_file_write(fd, text, g_strlen(text));
-        SetServiceStatus(g_ssh, &g_service_status);
-        g_listen = xrdp_listen_create();
-        xrdp_listen_main_loop(g_listen);
+        SetServiceStatus(s_ssh, &s_service_status);
+        s_listen = xrdp_listen_create();
+        xrdp_listen_main_loop(s_listen);
         g_sleep(100);
-        g_service_status.dwCurrentState = SERVICE_STOPPED;
-        SetServiceStatus(g_ssh, &g_service_status);
+        s_service_status.dwCurrentState = SERVICE_STOPPED;
+        SetServiceStatus(s_ssh, &s_service_status);
     }
     else
     {
@@ -260,11 +260,11 @@ MyServiceMain(DWORD dwArgc, LPTSTR *lpszArgv)
         //g_file_write(fd, text, g_strlen(text));
     }
 
-    xrdp_listen_delete(g_listen);
-    tc_mutex_delete(g_sync_mutex);
+    xrdp_listen_delete(s_listen);
+    tc_mutex_delete(s_sync_mutex);
     tc_mutex_delete(g_sync1_mutex);
-    g_destroy_wait_obj(g_term_event);
-    g_destroy_wait_obj(g_sync_event);
+    g_destroy_wait_obj(s_term_event);
+    g_destroy_wait_obj(s_sync_event);
     WSACleanup();
     //CloseHandle(event_han);
 }
@@ -606,30 +606,30 @@ main(int argc, char **argv)
     }
 
 #endif
-    g_threadid = tc_get_threadid();
-    g_listen = xrdp_listen_create();
+    s_threadid = tc_get_threadid();
+    s_listen = xrdp_listen_create();
     g_signal_user_interrupt(xrdp_shutdown); /* SIGINT */
     g_signal_pipe(pipe_sig); /* SIGPIPE */
     g_signal_terminate(xrdp_shutdown); /* SIGTERM */
-    g_sync_mutex = tc_mutex_create();
+    s_sync_mutex = tc_mutex_create();
     g_sync1_mutex = tc_mutex_create();
     pid = g_getpid();
     g_snprintf(text, 255, "xrdp_%8.8x_main_term", pid);
-    g_term_event = g_create_wait_obj(text);
+    s_term_event = g_create_wait_obj(text);
     g_snprintf(text, 255, "xrdp_%8.8x_main_sync", pid);
-    g_sync_event = g_create_wait_obj(text);
+    s_sync_event = g_create_wait_obj(text);
 
-    if (g_term_event == 0)
+    if (s_term_event == 0)
     {
-        g_writeln("error creating g_term_event");
+        g_writeln("error creating s_term_event");
     }
 
-    xrdp_listen_main_loop(g_listen);
-    xrdp_listen_delete(g_listen);
-    tc_mutex_delete(g_sync_mutex);
+    xrdp_listen_main_loop(s_listen);
+    xrdp_listen_delete(s_listen);
+    tc_mutex_delete(s_sync_mutex);
     tc_mutex_delete(g_sync1_mutex);
-    g_delete_wait_obj(g_term_event);
-    g_delete_wait_obj(g_sync_event);
+    g_delete_wait_obj(s_term_event);
+    g_delete_wait_obj(s_sync_event);
 #if defined(_WIN32)
     /* I don't think it ever gets here */
     /* when running in win32 app mode, control c exits right away */

@@ -28,7 +28,7 @@
 #include "thread_calls.h"
 
 static IBusBus *bus;
-static IBusEngine *g_engine;
+static IBusEngine *s_engine;
 /* This is the engine name enabled before unicode engine enabled */
 static const gchar *last_input_name;
 static int id = 0;
@@ -83,7 +83,7 @@ xrdp_input_send_unicode(char32_t unicode)
     }
 
     gunichar chr = unicode;
-    ibus_engine_commit_text(g_engine, ibus_text_new_from_unichar(chr));
+    ibus_engine_commit_text(s_engine, ibus_text_new_from_unichar(chr));
 
     return 0;
 }
@@ -92,7 +92,7 @@ static void
 xrdp_input_ibus_engine_enable(IBusEngine *engine)
 {
     LOG(LOG_LEVEL_INFO, "xrdp_ibus_engine_enable: IM enabled");
-    g_engine = engine;
+    s_engine = engine;
 }
 
 static void
@@ -105,7 +105,7 @@ static void
 xrdp_input_ibus_disconnect(IBusEngine *engine)
 {
     LOG(LOG_LEVEL_INFO, "xrdp_ibus_engine_disable: IM disabled");
-    g_object_unref(g_engine);
+    g_object_unref(s_engine);
     g_object_unref(bus);
 }
 
@@ -198,12 +198,12 @@ xrdp_input_unicode_destroy(void)
         ibus_bus_set_global_engine(bus, last_input_name);
     }
 
-    g_object_unref(g_engine);
+    g_object_unref(s_engine);
     g_object_unref(bus);
 
     last_input_name = NULL;
     bus = NULL;
-    g_engine = NULL;
+    s_engine = NULL;
 
     return 0;
 }

@@ -34,19 +34,19 @@
 
 #define THREAD_WAITING 100
 
-static long g_threadid = 0; /* main threadid */
+static long s_threadid = 0; /* main threadid */
 
-static long g_sync_mutex = 0;
-static long g_sync1_mutex = 0;
-static tbus g_term_event = 0;
-static tbus g_sigchld_event = 0;
-static tbus g_sync_event = 0;
+static long s_sync_mutex = 0;
+static long s_sync1_mutex = 0;
+static tbus s_term_event = 0;
+static tbus s_sigchld_event = 0;
+static tbus s_sync_event = 0;
 /* synchronize stuff */
-static int g_sync_command = 0;
-static long g_sync_result = 0;
-static long g_sync_param1 = 0;
-static long g_sync_param2 = 0;
-static long (*g_sync_func)(long param1, long param2);
+static int s_sync_command = 0;
+static long s_sync_result = 0;
+static long s_sync_param1 = 0;
+static long s_sync_param2 = 0;
+static long (*s_sync_func)(long param1, long param2);
 
 /*****************************************************************************/
 /* This function is used to run a function from the main thread.
@@ -60,8 +60,8 @@ g_xrdp_sync(long (*sync_func)(long param1, long param2), long sync_param1,
     int sync_command;
 
     /* If the function is called from the main thread, the function can
-     * be called directly. g_threadid= main thread ID*/
-    if (tc_threadid_equal(tc_get_threadid(), g_threadid))
+     * be called directly. s_threadid= main thread ID*/
+    if (tc_threadid_equal(tc_get_threadid(), s_threadid))
     {
         /* this is the main thread, call the function directly */
         /* in fork mode, this always happens too */
@@ -73,32 +73,32 @@ g_xrdp_sync(long (*sync_func)(long param1, long param2), long sync_param1,
         /* All threads have to wait here until the main thread
          * process the function. g_process_waiting_function() is called
          * from the listening thread. g_process_waiting_function() process the function*/
-        tc_mutex_lock(g_sync1_mutex);
-        tc_mutex_lock(g_sync_mutex);
-        g_sync_param1 = sync_param1;
-        g_sync_param2 = sync_param2;
-        g_sync_func = sync_func;
+        tc_mutex_lock(s_sync1_mutex);
+        tc_mutex_lock(s_sync_mutex);
+        s_sync_param1 = sync_param1;
+        s_sync_param2 = sync_param2;
+        s_sync_func = sync_func;
         /* set a value THREAD_WAITING so the g_process_waiting_function function
          * know if any function must be processed */
-        g_sync_command = THREAD_WAITING;
-        tc_mutex_unlock(g_sync_mutex);
+        s_sync_command = THREAD_WAITING;
+        tc_mutex_unlock(s_sync_mutex);
         /* set this event so that the main thread know if
          * g_process_waiting_function() must be called */
-        g_set_wait_obj(g_sync_event);
+        g_set_wait_obj(s_sync_event);
 
         do
         {
             g_sleep(100);
-            tc_mutex_lock(g_sync_mutex);
+            tc_mutex_lock(s_sync_mutex);
             /* load new value from global to see if the g_process_waiting_function()
              * function has processed the function */
-            sync_command = g_sync_command;
-            sync_result = g_sync_result;
-            tc_mutex_unlock(g_sync_mutex);
+            sync_command = s_sync_command;
+            sync_result = s_sync_result;
+            tc_mutex_unlock(s_sync_mutex);
         }
         while (sync_command != 0); /* loop until g_process_waiting_function()
                                 * has processed the request */
-        tc_mutex_unlock(g_sync1_mutex);
+        tc_mutex_unlock(s_sync1_mutex);
         LOG_DEVEL(LOG_LEVEL_DEBUG, "g_xrdp_sync processed BY main thread -> continue");
     }
 
@@ -129,16 +129,16 @@ xrdp_child_fork(void)
     /* SIGCHLD in the child is of no interest to us */
     g_signal_child_stop(xrdp_child_sigchld_handler);        /* SIGCHLD */
 
-    g_close_wait_obj(g_term_event);
-    g_close_wait_obj(g_sigchld_event);
-    g_close_wait_obj(g_sync_event);
+    g_close_wait_obj(s_term_event);
+    g_close_wait_obj(s_sigchld_event);
+    g_close_wait_obj(s_sync_event);
 
     pid = g_getpid();
     g_snprintf(text, 255, "xrdp_%8.8x_main_term", pid);
-    g_term_event = g_create_wait_obj(text);
-    g_sigchld_event = -1;
+    s_term_event = g_create_wait_obj(text);
+    s_sigchld_event = -1;
     g_snprintf(text, 255, "xrdp_%8.8x_main_sync", pid);
-    g_sync_event = g_create_wait_obj(text);
+    s_sync_event = g_create_wait_obj(text);
     return 0;
 }
 
@@ -146,91 +146,91 @@ xrdp_child_fork(void)
 long
 g_get_sync_mutex(void)
 {
-    return g_sync_mutex;
+    return s_sync_mutex;
 }
 
 /*****************************************************************************/
 void
 g_set_sync_mutex(long mutex)
 {
-    g_sync_mutex = mutex;
+    s_sync_mutex = mutex;
 }
 
 /*****************************************************************************/
 long
 g_get_sync1_mutex(void)
 {
-    return g_sync1_mutex;
+    return s_sync1_mutex;
 }
 
 /*****************************************************************************/
 void
 g_set_sync1_mutex(long mutex)
 {
-    g_sync1_mutex = mutex;
+    s_sync1_mutex = mutex;
 }
 
 /*****************************************************************************/
 void
 g_set_term_event(tbus event)
 {
-    g_term_event = event;
+    s_term_event = event;
 }
 
 /*****************************************************************************/
 void
 g_set_sigchld_event(tbus event)
 {
-    g_sigchld_event = event;
+    s_sigchld_event = event;
 }
 
 /*****************************************************************************/
 tbus
 g_get_sync_event(void)
 {
-    return g_sync_event;
+    return s_sync_event;
 }
 
 /*****************************************************************************/
 void
 g_set_sync_event(tbus event)
 {
-    g_sync_event = event;
+    s_sync_event = event;
 }
 
 /*****************************************************************************/
 long
 g_get_threadid(void)
 {
-    return g_threadid;
+    return s_threadid;
 }
 
 /*****************************************************************************/
 void
 g_set_threadid(long id)
 {
-    g_threadid = id;
+    s_threadid = id;
 }
 
 /*****************************************************************************/
 tbus
 g_get_term(void)
 {
-    return g_term_event;
+    return s_term_event;
 }
 
 /*****************************************************************************/
 tbus
 g_get_sigchld(void)
 {
-    return g_sigchld_event;
+    return s_sigchld_event;
 }
 
 /*****************************************************************************/
 int
 g_is_term(void)
 {
-    return g_is_wait_obj_set(g_term_event);
+    return g_is_wait_obj_set(s_term_event);
 }
 
 /*****************************************************************************/
@@ -239,11 +239,11 @@ g_set_term(int in_val)
 {
     if (in_val)
     {
-        g_set_wait_obj(g_term_event);
+        g_set_wait_obj(s_term_event);
     }
     else
     {
-        g_reset_wait_obj(g_term_event);
+        g_reset_wait_obj(s_term_event);
     }
 }
 
@@ -253,34 +253,34 @@ g_set_sigchld(int in_val)
 {
     if (in_val)
     {
-        g_set_wait_obj(g_sigchld_event);
+        g_set_wait_obj(s_sigchld_event);
     }
     else
     {
-        g_reset_wait_obj(g_sigchld_event);
+        g_reset_wait_obj(s_sigchld_event);
     }
 }
 
 /*****************************************************************************/
 /*Some function must be called from the main thread.
- if g_sync_command==THREAD_WAITING a function is waiting to be processed*/
+ if s_sync_command==THREAD_WAITING a function is waiting to be processed*/
 void
 g_process_waiting_function(void)
 {
-    tc_mutex_lock(g_sync_mutex);
+    tc_mutex_lock(s_sync_mutex);
 
-    if (g_sync_command != 0)
+    if (s_sync_command != 0)
     {
-        if (g_sync_func != 0)
+        if (s_sync_func != 0)
         {
-            if (g_sync_command == THREAD_WAITING)
+            if (s_sync_command == THREAD_WAITING)
             {
-                g_sync_result = g_sync_func(g_sync_param1, g_sync_param2);
+                s_sync_result = s_sync_func(s_sync_param1, s_sync_param2);
             }
         }
 
-        g_sync_command = 0;
+        s_sync_command = 0;
     }
 
-    tc_mutex_unlock(g_sync_mutex);
+    tc_mutex_unlock(s_sync_mutex);
 }

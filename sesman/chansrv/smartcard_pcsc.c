@@ -56,7 +56,7 @@
 #if PCSC_STANDIN
 
 
-static int g_autoinc = 0; /* general purpose autoinc */
+static int s_autoinc = 0; /* general purpose autoinc */
 
 struct pcsc_card /* item for list of open cards in one context */
 {
@@ -82,11 +82,11 @@ struct pcsc_uds_client
     struct pcsc_context *connect_context;
 };
 
-static struct list *g_uds_clients = 0; /* struct pcsc_uds_client */
+static struct list *s_uds_clients = 0; /* struct pcsc_uds_client */
 
-static struct trans *g_lis = 0;
-static char g_pcsclite_ipc_dir[256] = "";
-static char g_pcsclite_ipc_file[256] = "";
+static struct trans *s_lis = 0;
+static char s_pcsclite_ipc_dir[256] = "";
+static char s_pcsclite_ipc_file[256] = "";
 
 /*****************************************************************************/
 /* got a new unix domain socket connection */
@@ -105,8 +105,8 @@ create_uds_client(struct trans *con)
     {
         return 0;
     }
-    g_autoinc++;
-    uds_client->uds_client_id = g_autoinc;
+    s_autoinc++;
+    uds_client->uds_client_id = s_autoinc;
     uds_client->con = con;
     con->callback_data = uds_client;
     return uds_client;
@@ -125,16 +125,16 @@ get_uds_client_by_id(int uds_client_id)
         LOG(LOG_LEVEL_ERROR, "get_uds_client_by_id: uds_client_id is zero");
         return 0;
     }
-    if (g_uds_clients == 0)
+    if (s_uds_clients == 0)
     {
-        LOG(LOG_LEVEL_ERROR, "get_uds_client_by_id: g_uds_clients is nil");
+        LOG(LOG_LEVEL_ERROR, "get_uds_client_by_id: s_uds_clients is nil");
         return 0;
     }
-    LOG_DEVEL(LOG_LEVEL_DEBUG, "  count %d", g_uds_clients->count);
-    for (index = 0; index < g_uds_clients->count; index++)
+    LOG_DEVEL(LOG_LEVEL_DEBUG, "  count %d", s_uds_clients->count);
+    for (index = 0; index < s_uds_clients->count; index++)
     {
         uds_client = (struct pcsc_uds_client *)
-                     list_get_item(g_uds_clients, index);
+                     list_get_item(s_uds_clients, index);
         if (uds_client->uds_client_id == uds_client_id)
         {
             return uds_client;
@@ -293,8 +293,8 @@ uds_client_add_context(struct pcsc_uds_client *uds_client,
             "uds_client_add_context: failed to allocate memory for pcsc_context");
         return 0;
     }
-    g_autoinc++;
-    pcscContext->app_context = g_autoinc;
+    s_autoinc++;
+    pcscContext->app_context = s_autoinc;
     pcscContext->context_bytes = context_bytes;
     g_memcpy(pcscContext->context, context, context_bytes);
     if (uds_client->contexts == 0)
@@ -354,8 +354,8 @@ context_add_card(struct pcsc_uds_client *uds_client,
             "context_add_card: failed to allocate memory for pcsc_card");
         return 0;
     }
-    g_autoinc++;
-    pcscCard->app_card = g_autoinc;
+    s_autoinc++;
+    pcscCard->app_card = s_autoinc;
     pcscCard->card_bytes = card_bytes;
     g_memcpy(pcscCard->card, card, card_bytes);
     if (acontext->cards == 0)
@@ -381,16 +381,16 @@ scard_pcsc_get_wait_objs(tbus *objs, int *count, int *timeout)
     int index;
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "scard_pcsc_get_wait_objs:");
-    if (g_lis != 0)
+    if (s_lis != 0)
     {
-        trans_get_wait_objs(g_lis, objs, count);
+        trans_get_wait_objs(s_lis, objs, count);
     }
-    if (g_uds_clients != 0)
+    if (s_uds_clients != 0)
     {
-        for (index = 0; index < g_uds_clients->count; index++)
+        for (index = 0; index < s_uds_clients->count; index++)
         {
             uds_client = (struct pcsc_uds_client *)
-                         list_get_item(g_uds_clients, index);
+                         list_get_item(s_uds_clients, index);
             if (uds_client != 0)
             {
                 trans_get_wait_objs(uds_client->con, objs, count);
@@ -408,27 +408,27 @@ scard_pcsc_check_wait_objs(void)
     int index;
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "scard_pcsc_check_wait_objs:");
-    if (g_lis != 0)
+    if (s_lis != 0)
     {
-        if (trans_check_wait_objs(g_lis) != 0)
+        if (trans_check_wait_objs(s_lis) != 0)
         {
             LOG(LOG_LEVEL_ERROR,
-                "scard_pcsc_check_wait_objs: g_lis trans_check_wait_objs error");
+                "scard_pcsc_check_wait_objs: s_lis trans_check_wait_objs error");
         }
     }
-    if (g_uds_clients != 0)
+    if (s_uds_clients != 0)
     {
         index = 0;
-        while (index < g_uds_clients->count)
+        while (index < s_uds_clients->count)
         {
             uds_client = (struct pcsc_uds_client *)
-                         list_get_item(g_uds_clients, index);
+                         list_get_item(s_uds_clients, index);
             if (uds_client != 0)
             {
                 if (trans_check_wait_objs(uds_client->con) != 0)
                 {
                     free_uds_client(uds_client);
-                    list_remove_item(g_uds_clients, index);
+                    list_remove_item(s_uds_clients, index);
                     continue;
                 }
             }
@@ -1458,7 +1458,7 @@ scard_process_status(struct trans *con, struct stream *in_s)
 #define PC_SCARD_NEGOTIABLE 0x0020 /**< Ready for PTS */
 #define PC_SCARD_SPECIFIC   0x0040 /**< PTS has been set */
 
-static int g_ms2pc[] = { PC_SCARD_UNKNOWN, PC_SCARD_ABSENT,
+static int s_ms2pc[] = { PC_SCARD_UNKNOWN, PC_SCARD_ABSENT,
                          PC_SCARD_PRESENT, PC_SCARD_SWALLOWED,
                          PC_SCARD_POWERED, PC_SCARD_NEGOTIABLE,
                          PC_SCARD_SPECIFIC
@@ -1546,7 +1546,7 @@ scard_function_status_return(void *user_data,
         in_uint32_le(in_s, dwReaderLen);
         in_uint8s(in_s, 4); // Referent Identifier
         in_uint32_le(in_s, dwState);
-        dwState = g_ms2pc[dwState % 6];
+        dwState = s_ms2pc[dwState % 6];
         in_uint32_le(in_s, dwProtocol);
         in_uint8a(in_s, attr, 32);
         in_uint32_le(in_s, dwAtrLen);
@@ -1949,7 +1949,7 @@ my_pcsc_trans_conn_in(struct trans *trans, struct trans *new_trans)
         return 1;
     }
 
-    if (trans != g_lis)
+    if (trans != s_lis)
     {
         return 1;
     }
@@ -1967,11 +1967,11 @@ my_pcsc_trans_conn_in(struct trans *trans, struct trans *new_trans)
     uds_client->con->trans_data_in = my_pcsc_trans_data_in;
     uds_client->con->header_size = 8;
 
-    if (g_uds_clients == 0)
+    if (s_uds_clients == 0)
     {
-        g_uds_clients = list_create();
+        s_uds_clients = list_create();
     }
-    list_add_item(g_uds_clients, (tbus)uds_client);
+    list_add_item(s_uds_clients, (tbus)uds_client);
 
     return 0;
 }
@@ -1985,27 +1985,27 @@ scard_pcsc_init(void)
     int error;
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "scard_pcsc_init:");
-    if (g_lis == 0)
+    if (s_lis == 0)
     {
-        g_lis = trans_create(2, 8192, 8192);
+        s_lis = trans_create(2, 8192, 8192);
         // TODO: See #2501. Use needs a way to move PCSCLITE_CSOCK_NAME
         // to a location not under $HOME.
         home = g_getenv("HOME");
         disp = g_display_num;
-        g_snprintf(g_pcsclite_ipc_dir, 255, "%s/.pcsc%d", home, disp);
+        g_snprintf(s_pcsclite_ipc_dir, 255, "%s/.pcsc%d", home, disp);
 
-        if (g_directory_exist(g_pcsclite_ipc_dir))
+        if (g_directory_exist(s_pcsclite_ipc_dir))
         {
-            if (!g_remove_dir(g_pcsclite_ipc_dir))
+            if (!g_remove_dir(s_pcsclite_ipc_dir))
             {
                 LOG_DEVEL(LOG_LEVEL_WARNING, "scard_pcsc_init: g_remove_dir failed");
             }
         }
-        if (!g_directory_exist(g_pcsclite_ipc_dir))
+        if (!g_directory_exist(s_pcsclite_ipc_dir))
         {
-            if (!g_create_dir(g_pcsclite_ipc_dir))
+            if (!g_create_dir(s_pcsclite_ipc_dir))
             {
-                if (!g_directory_exist(g_pcsclite_ipc_dir))
+                if (!g_directory_exist(s_pcsclite_ipc_dir))
                 {
                     LOG_DEVEL(LOG_LEVEL_WARNING, "scard_pcsc_init: g_create_dir failed");
                 }
@@ -2013,14 +2013,14 @@ scard_pcsc_init(void)
         }
         /* Only the current user should be able to access the remote
          * smartcard */
-        g_chmod_hex(g_pcsclite_ipc_dir, 0x700);
-        g_snprintf(g_pcsclite_ipc_file, 255, "%s/pcscd.comm", g_pcsclite_ipc_dir);
-        g_lis->trans_conn_in = my_pcsc_trans_conn_in;
-        error = trans_listen(g_lis, g_pcsclite_ipc_file);
+        g_chmod_hex(s_pcsclite_ipc_dir, 0x700);
+        g_snprintf(s_pcsclite_ipc_file, 255, "%s/pcscd.comm", s_pcsclite_ipc_dir);
+        s_lis->trans_conn_in = my_pcsc_trans_conn_in;
+        error = trans_listen(s_lis, s_pcsclite_ipc_file);
         if (error != 0)
         {
             LOG(LOG_LEVEL_ERROR, "scard_pcsc_init: trans_listen failed for port %s",
-                g_pcsclite_ipc_file);
+                s_pcsclite_ipc_file);
             return 1;
         }
     }
@@ -2033,20 +2033,20 @@ scard_pcsc_deinit(void)
 {
     LOG_DEVEL(LOG_LEVEL_DEBUG, "scard_pcsc_deinit:");
 
-    if (g_lis != 0)
+    if (s_lis != 0)
     {
-        trans_delete(g_lis);
-        g_lis = 0;
+        trans_delete(s_lis);
+        s_lis = 0;
     }
 
-    if (g_pcsclite_ipc_dir[0] != 0)
+    if (s_pcsclite_ipc_dir[0] != 0)
     {
-        g_file_delete(g_pcsclite_ipc_file);
-        if (!g_remove_dir(g_pcsclite_ipc_dir))
+        g_file_delete(s_pcsclite_ipc_file);
+        if (!g_remove_dir(s_pcsclite_ipc_dir))
         {
             LOG_DEVEL(LOG_LEVEL_WARNING, "scard_pcsc_deinit: g_remove_dir failed");
         }
-        g_pcsclite_ipc_dir[0] = 0;
+        s_pcsclite_ipc_dir[0] = 0;
     }
 
     return 0;

@@ -37,18 +37,18 @@
 #include "xrdp_accel_assist_glx.h"
 #include "log.h"
 
-static int g_n_fbconfigs = 0;
-static int g_n_pixconfigs = 0;
-static GLXFBConfig *g_fbconfigs = NULL;
-static GLXFBConfig *g_pixconfigs = NULL;
-static GLXContext g_gl_context = 0;
+static int s_n_fbconfigs = 0;
+static int s_n_pixconfigs = 0;
+static GLXFBConfig *s_fbconfigs = NULL;
+static GLXFBConfig *s_pixconfigs = NULL;
+static GLXContext s_gl_context = 0;
 
 /* X11 */
 extern Display *g_display; /* in xrdp_accel_assist_x11.c */
 extern Window g_root_window; /* in xrdp_accel_assist_x11.c */
 extern int g_screen_num; /* in xrdp_accel_assist_x11.c */
 
-static const int g_fbconfig_attrs[] =
+static const int s_fbconfig_attrs[] =
 {
     GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
     GLX_RENDER_TYPE,   GLX_RGBA_BIT,
@@ -59,7 +59,7 @@ static const int g_fbconfig_attrs[] =
     None
 };
 
-static const int g_pixconfig_attrs[] =
+static const int s_pixconfig_attrs[] =
 {
     GLX_BIND_TO_TEXTURE_RGBA_EXT,       True,
     GLX_DRAWABLE_TYPE,                  GLX_PIXMAP_BIT,
@@ -69,7 +69,7 @@ static const int g_pixconfig_attrs[] =
     None
 };
 
-static const int g_pixmap_attribs[] =
+static const int s_pixmap_attribs[] =
 {
     GLX_TEXTURE_TARGET_EXT, GLX_TEXTURE_2D_EXT,
     GLX_TEXTURE_FORMAT_EXT, GLX_TEXTURE_FORMAT_RGBA_EXT,
@@ -100,18 +100,18 @@ xrdp_accel_assist_inf_glx_init(void)
         return 1;
     }
     LOG(LOG_LEVEL_INFO, "GLX_EXT_texture_from_pixmap present");
-    g_fbconfigs = glXChooseFBConfig(g_display, g_screen_num,
-                                    g_fbconfig_attrs, &g_n_fbconfigs);
-    LOG(LOG_LEVEL_INFO, "g_fbconfigs %p", g_fbconfigs);
-    g_gl_context = glXCreateNewContext(g_display, g_fbconfigs[0],
+    s_fbconfigs = glXChooseFBConfig(g_display, g_screen_num,
+                                    s_fbconfig_attrs, &s_n_fbconfigs);
+    LOG(LOG_LEVEL_INFO, "s_fbconfigs %p", s_fbconfigs);
+    s_gl_context = glXCreateNewContext(g_display, s_fbconfigs[0],
                                        GLX_RGBA_TYPE, NULL, 1);
-    LOG(LOG_LEVEL_INFO, "g_gl_context %p", g_gl_context);
-    ok = glXMakeCurrent(g_display, g_root_window, g_gl_context);
+    LOG(LOG_LEVEL_INFO, "s_gl_context %p", s_gl_context);
+    ok = glXMakeCurrent(g_display, g_root_window, s_gl_context);
     LOG(LOG_LEVEL_INFO, "ok %d", ok);
-    g_pixconfigs = glXChooseFBConfig(g_display, g_screen_num,
-                                     g_pixconfig_attrs, &g_n_pixconfigs);
-    LOG(LOG_LEVEL_INFO, "g_pixconfigs %p g_n_pixconfigs %d",
-        g_pixconfigs, g_n_pixconfigs);
+    s_pixconfigs = glXChooseFBConfig(g_display, g_screen_num,
+                                     s_pixconfig_attrs, &s_n_pixconfigs);
+    LOG(LOG_LEVEL_INFO, "s_pixconfigs %p s_n_pixconfigs %d",
+        s_pixconfigs, s_n_pixconfigs);
     return 0;
 }
 
@@ -119,8 +119,8 @@ xrdp_accel_assist_inf_glx_init(void)
 int
 xrdp_accel_assist_inf_glx_create_image(Pixmap pixmap, inf_image_t *inf_image)
 {
-    *inf_image = (inf_image_t)glXCreatePixmap(g_display, g_pixconfigs[0],
-                 pixmap, g_pixmap_attribs);
+    *inf_image = (inf_image_t)glXCreatePixmap(g_display, s_pixconfigs[0],
+                 pixmap, s_pixmap_attribs);
     return 0;
 }
 

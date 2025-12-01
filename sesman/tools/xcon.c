@@ -29,28 +29,28 @@
 #include <X11/Xlib.h>
 #include <sys/select.h>
 
-static Display *g_display = 0;
-static int g_x_socket = 0;
+static Display *s_display = 0;
+static int s_x_socket = 0;
 
 int main(int argc, char **argv)
 {
     int i1;
     XEvent xevent;
 
-    g_display = XOpenDisplay(0);
+    s_display = XOpenDisplay(0);
 
-    if (g_display == 0)
+    if (s_display == 0)
     {
         printf("XOpenDisplay failed\n");
         return 0;
     }
 
-    g_x_socket = XConnectionNumber(g_display);
+    s_x_socket = XConnectionNumber(s_display);
 
     while (1)
     {
         struct pollfd pollfd;
-        pollfd.fd = g_x_socket;
+        pollfd.fd = s_x_socket;
         pollfd.events = POLLIN;
         pollfd.revents = 0;
         do
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
             break;
         }
 
-        XNextEvent(g_display, &xevent);
+        XNextEvent(s_display, &xevent);
     }
 
     return 0;

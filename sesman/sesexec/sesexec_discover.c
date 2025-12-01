@@ -42,7 +42,7 @@
 /*
  * Module-scope globals
  */
-static struct trans *g_discover_trans = NULL;
+static struct trans *s_discover_trans = NULL;
 
 /*****************************************************************************/
 static int
@@ -51,7 +51,7 @@ discover_trans_conn_in(struct trans *trans, struct trans *new_trans)
     const struct session_parameters *sp;
     int rv = 0;
 
-    if (trans == NULL || new_trans == NULL || trans != g_discover_trans)
+    if (trans == NULL || new_trans == NULL || trans != s_discover_trans)
     {
         return 1;
     }
@@ -129,11 +129,11 @@ sesexec_discover_enable(void)
     {
         LOG(LOG_LEVEL_ERROR, "Cant enable discovery without an active session");
     }
-    else if (g_discover_trans != NULL)
+    else if (s_discover_trans != NULL)
     {
         LOG(LOG_LEVEL_ERROR, "Logic error: discovery is already active");
     }
-    else if ((g_discover_trans =
+    else if ((s_discover_trans =
                   trans_create(TRANS_MODE_UNIX, 8192, 8192)) == NULL)
     {
         LOG(LOG_LEVEL_ERROR, "Out of memory enabling discovery");
@@ -145,14 +145,14 @@ sesexec_discover_enable(void)
         snprintf(discover_port, sizeof(discover_port), "%s.r/%u",
                  g_cfg->listen_port,
                  session_get_parameters(g_session_data)->display);
-        g_discover_trans->is_term = sesexec_is_term;
-        g_discover_trans->trans_conn_in = discover_trans_conn_in;
-        if ((rv = trans_listen(g_discover_trans, discover_port)) != 0)
+        s_discover_trans->is_term = sesexec_is_term;
+        s_discover_trans->trans_conn_in = discover_trans_conn_in;
+        if ((rv = trans_listen(s_discover_trans, discover_port)) != 0)
         {
             LOG(LOG_LEVEL_ERROR, "Transport error enabling discovery [%s]",
                 g_get_strerror());
-            trans_delete(g_discover_trans);
-            g_discover_trans = NULL;
+            trans_delete(s_discover_trans);
+            s_discover_trans = NULL;
         }
     }
 
@@ -163,8 +163,8 @@ sesexec_discover_enable(void)
 int
 sesexec_discover_disable(void)
 {
-    trans_delete(g_discover_trans);
-    g_discover_trans = NULL;
+    trans_delete(s_discover_trans);
+    s_discover_trans = NULL;
 
     return 0;
 }
@@ -176,7 +176,7 @@ sesexec_discover_get_wait_objs(intptr_t robjs[], int *robjs_count,
                                int max_count)
 {
     int rv;
-    if (g_discover_trans == NULL)
+    if (s_discover_trans == NULL)
     {
         rv = 0;
     }
@@ -186,7 +186,7 @@ sesexec_discover_get_wait_objs(intptr_t robjs[], int *robjs_count,
     }
     else
     {
-        rv = trans_get_wait_objs(g_discover_trans, robjs, robjs_count);
+        rv = trans_get_wait_objs(s_discover_trans, robjs, robjs_count);
     }
 
     return rv;
@@ -196,7 +196,7 @@ sesexec_discover_get_wait_objs(intptr_t robjs[], int *robjs_count,
 int
 sesexec_discover_check_wait_objs(void)
 {
-    return (g_discover_trans == NULL)
+    return (s_discover_trans == NULL)
            ? 0
-           : trans_check_wait_objs(g_discover_trans);
+           : trans_check_wait_objs(s_discover_trans);
 }

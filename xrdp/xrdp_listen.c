@@ -26,10 +26,10 @@
 #include "log.h"
 #include "string_calls.h"
 
-/* 'g_process' is protected by the semaphore 'g_process_sem'.  One thread sets
-   g_process and waits for the other to process it */
-static tbus g_process_sem = 0;
-static struct xrdp_process *g_process = 0;
+/* 's_process' is protected by the semaphore 's_process_sem'.  One thread sets
+   s_process and waits for the other to process it */
+static tbus s_process_sem = 0;
+static struct xrdp_process *s_process = 0;
 
 int
 xrdp_listen_conn_in(struct trans *self, struct trans *new_self);
@@ -66,9 +66,9 @@ xrdp_listen_create(struct xrdp_startup_params *startup_params)
     self->fork_list = list_create();
     self->startup_params = startup_params;
 
-    if (g_process_sem == 0)
+    if (s_process_sem == 0)
     {
-        g_process_sem = tc_sem_create(0);
+        s_process_sem = tc_sem_create(0);
     }
     return self;
 }
@@ -94,10 +94,10 @@ xrdp_listen_delete(struct xrdp_listen *self)
         list_delete(self->trans_list);
     }
 
-    if (g_process_sem != 0)
+    if (s_process_sem != 0)
     {
-        tc_sem_delete(g_process_sem);
-        g_process_sem = 0;
+        tc_sem_delete(s_process_sem);
+        s_process_sem = 0;
     }
 
     g_delete_wait_obj(self->pro_done_event);
@@ -147,9 +147,9 @@ xrdp_process_run(void *in_val)
     struct xrdp_process *process;
 
     LOG_DEVEL(LOG_LEVEL_TRACE, "process started");
-    process = g_process;
-    g_process = 0;
-    tc_sem_inc(g_process_sem);
+    process = s_process;
+    s_process = 0;
+    tc_sem_inc(s_process_sem);
     xrdp_process_main_loop(process);
     LOG_DEVEL(LOG_LEVEL_TRACE, "process done");
     return 0;
@@ -711,9 +711,9 @@ xrdp_listen_fork(struct xrdp_listen *self, struct trans *server_trans)
         /* new connect instance */
         process = xrdp_process_create(self, 0);
         process->server_trans = server_trans;
-        g_process = process;
+        s_process = process;
         xrdp_process_run(0);
-        tc_sem_dec(g_process_sem);
+        tc_sem_dec(s_process_sem);
         xrdp_process_delete(process);
         /* mark this process to exit */
         g_set_term(1);
@@ -747,9 +747,9 @@ xrdp_listen_conn_in(struct trans *self, struct trans *new_self)
     {
         /* start thread */
         process->server_trans = new_self;
-        g_process = process;
+        s_process = process;
         tc_thread_create(xrdp_process_run, 0);
-        tc_sem_dec(g_process_sem); /* this will wait */
+        tc_sem_dec(s_process_sem); /* this will wait */
     }
     else
     {

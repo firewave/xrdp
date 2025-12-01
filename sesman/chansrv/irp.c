@@ -31,7 +31,7 @@
 #include "string_calls.h"
 #include "irp.h"
 
-static IRP *g_irp_head = NULL;
+static IRP *s_irp_head = NULL;
 
 /**
  * Create a new IRP and append to linked list
@@ -58,7 +58,7 @@ IRP *devredir_irp_new(void)
     if ((irp_last = devredir_irp_get_last()) == NULL)
     {
         /* list is empty, this is the first entry */
-        g_irp_head = irp;
+        s_irp_head = irp;
     }
     else
     {
@@ -122,7 +122,7 @@ IRP *devredir_irp_with_pathnamelen_new(unsigned int pathnamelen)
     if ((irp_last = devredir_irp_get_last()) == NULL)
     {
         /* list is empty, this is the first entry */
-        g_irp_head = irp;
+        s_irp_head = irp;
     }
     else
     {
@@ -142,7 +142,7 @@ IRP *devredir_irp_with_pathnamelen_new(unsigned int pathnamelen)
 
 int devredir_irp_delete(IRP *irp)
 {
-    IRP *lirp = g_irp_head;
+    IRP *lirp = s_irp_head;
 
     if ((irp == NULL) || (lirp == NULL))
     {
@@ -176,13 +176,13 @@ int devredir_irp_delete(IRP *irp)
         {
             /* only one element in list */
             g_free(lirp);
-            g_irp_head = NULL;
+            s_irp_head = NULL;
             devredir_irp_dump(); // LK_TODO
             return 0;
         }
 
         lirp->next->prev = NULL;
-        g_irp_head = lirp->next;
+        s_irp_head = lirp->next;
         g_free(lirp);
     }
     else if (lirp->next == NULL)
@@ -210,7 +210,7 @@ int devredir_irp_delete(IRP *irp)
 
 IRP *devredir_irp_find(tui32 completion_id)
 {
-    IRP *irp = g_irp_head;
+    IRP *irp = s_irp_head;
 
     while (irp)
     {
@@ -229,7 +229,7 @@ IRP *devredir_irp_find(tui32 completion_id)
 
 IRP *devredir_irp_find_by_fileid(tui32 FileId)
 {
-    IRP *irp = g_irp_head;
+    IRP *irp = s_irp_head;
 
     while (irp)
     {
@@ -252,7 +252,7 @@ IRP *devredir_irp_find_by_fileid(tui32 FileId)
 
 IRP *devredir_irp_get_last(void)
 {
-    IRP *irp = g_irp_head;
+    IRP *irp = s_irp_head;
 
     while (irp)
     {
@@ -270,7 +270,7 @@ IRP *devredir_irp_get_last(void)
 
 void devredir_irp_dump(void)
 {
-    IRP *irp = g_irp_head;
+    IRP *irp = s_irp_head;
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "------- dumping IRPs --------");
     while (irp)

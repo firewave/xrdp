@@ -39,10 +39,10 @@
 #include "os_calls.h"
 #include "string_calls.h"
 
-static int g_loc_io_count = 0;  // bytes read from local port
-static int g_rem_io_count = 0;  // bytes read from remote port
+static int s_loc_io_count = 0;  // bytes read from local port
+static int s_rem_io_count = 0;  // bytes read from remote port
 
-static int g_terminated = 0;
+static int s_terminated = 0;
 
 typedef unsigned short tui16;
 
@@ -78,7 +78,7 @@ copy_sck_to_sck(int from_sck, int to_sck, int hexdump, int local)
         rv = count; // Assume we'll return the amount of data copied
         if (local)
         {
-            g_loc_io_count += count;
+            s_loc_io_count += count;
             if (hexdump)
             {
                 LOG_HEXDUMP(LOG_LEVEL_INFO, "from local:", buff, count);
@@ -86,7 +86,7 @@ copy_sck_to_sck(int from_sck, int to_sck, int hexdump, int local)
         }
         else
         {
-            g_rem_io_count += count;
+            s_rem_io_count += count;
             if (hexdump)
             {
                 LOG_HEXDUMP(LOG_LEVEL_INFO, "from remote:", buff, count);
@@ -95,10 +95,10 @@ copy_sck_to_sck(int from_sck, int to_sck, int hexdump, int local)
 
 
         LOG(LOG_LEVEL_DEBUG, "local_io_count: %d\tremote_io_count: %d",
-            g_loc_io_count, g_rem_io_count);
+            s_loc_io_count, s_rem_io_count);
 
         const char *p = buff;
-        while ((count > 0) && (!g_terminated))
+        while ((count > 0) && (!s_terminated))
         {
             int error = g_tcp_send(to_sck, p, count, 0);
 
@@ -172,7 +172,7 @@ main_loop(char *local_port, char *remote_ip, char *remote_port, int hexdump)
     /* accept an incoming connection */
     if (error == 0)
     {
-        while ((!g_terminated) && (error == 0))
+        while ((!s_terminated) && (error == 0))
         {
             acc_sck = g_sck_accept(lis_sck);
 
@@ -192,7 +192,7 @@ main_loop(char *local_port, char *remote_ip, char *remote_port, int hexdump)
 
         if (error == 0)
         {
-            error = g_terminated;
+            error = s_terminated;
         }
 
         /* stop listening */
@@ -224,7 +224,7 @@ main_loop(char *local_port, char *remote_ip, char *remote_port, int hexdump)
             error = 0;
             i = 0;
 
-            while (!g_terminated && i < 100 &&
+            while (!s_terminated && i < 100 &&
                     !g_tcp_can_send(con_sck, 100))
             {
                 g_sleep(100);
@@ -242,13 +242,13 @@ main_loop(char *local_port, char *remote_ip, char *remote_port, int hexdump)
             }
         }
 
-        if ((error != 0) && (!g_terminated))
+        if ((error != 0) && (!s_terminated))
         {
             LOG(LOG_LEVEL_ERROR, "error connecting to remote\r\n");
         }
     }
 
-    while (!g_terminated)
+    while (!s_terminated)
     {
         sel = g_tcp_select(con_sck, acc_sck);
 
@@ -312,16 +312,16 @@ static void
 proxy_shutdown(int sig)
 {
     LOG(LOG_LEVEL_INFO, "shutting down");
-    g_terminated = 1;
+    s_terminated = 1;
 }
 
 static void
 clear_counters(int sig)
 {
     LOG(LOG_LEVEL_DEBUG, "cleared counters at: local_io_count: %d remote_io_count: %d",
-        g_loc_io_count, g_rem_io_count);
-    g_loc_io_count = 0;
-    g_rem_io_count = 0;
+        s_loc_io_count, s_rem_io_count);
+    s_loc_io_count = 0;
+    s_rem_io_count = 0;
 }
 
 /*****************************************************************************/
@@ -348,10 +348,10 @@ main(int argc, char **argv)
 
     if (argc < 5)
     {
-        while (!g_terminated)
+        while (!s_terminated)
         {
-            g_loc_io_count = 0;
-            g_rem_io_count = 0;
+            s_loc_io_count = 0;
+            s_rem_io_count = 0;
             main_loop(argv[1], argv[2], argv[3], 0);
         }
     }
@@ -359,7 +359,7 @@ main(int argc, char **argv)
     {
         dump = g_strcasecmp(argv[4], "dump") == 0;
 
-        while (!g_terminated)
+        while (!s_terminated)
         {
             main_loop(argv[1], argv[2], argv[3], dump);
         }

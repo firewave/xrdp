@@ -60,8 +60,8 @@ struct xr_wave_format_ex
     uint8_t *data;
 };
 
-static uint8_t g_pcm_44100_data[] = { 0 };
-static struct xr_wave_format_ex g_pcm_44100 =
+static uint8_t s_pcm_44100_data[] = { 0 };
+static struct xr_wave_format_ex s_pcm_44100 =
 {
     WAVE_FORMAT_PCM, /* wFormatTag */
     2,               /* num of channels */
@@ -70,22 +70,22 @@ static struct xr_wave_format_ex g_pcm_44100 =
     4,               /* block align */
     16,              /* bits per sample */
     0,               /* data size */
-    g_pcm_44100_data /* data */
+    s_pcm_44100_data /* data */
 };
 
-static struct chansrv_drdynvc_procs g_audin_info;
-static int g_audin_chanid;
-static struct stream *g_in_s;
+static struct chansrv_drdynvc_procs s_audin_info;
+static int s_audin_chanid;
+static struct stream *s_in_s;
 
-static struct xr_wave_format_ex *g_server_formats[] =
+static struct xr_wave_format_ex *s_server_formats[] =
 {
-    &g_pcm_44100,
+    &s_pcm_44100,
     NULL
 };
 
-static struct xr_wave_format_ex **g_client_formats = NULL;
+static struct xr_wave_format_ex **s_client_formats = NULL;
 
-static int g_current_format = 0; /* index in g_client_formats */
+static int s_current_format = 0; /* index in s_client_formats */
 
 /*****************************************************************************/
 
@@ -113,19 +113,19 @@ cleanup_client_formats(void)
 {
     int index;
 
-    if (g_client_formats == NULL)
+    if (s_client_formats == NULL)
     {
         return 0;
     }
     index = 0;
-    while (g_client_formats[index] != NULL)
+    while (s_client_formats[index] != NULL)
     {
-        g_free(g_client_formats[index]->data);
-        g_free(g_client_formats[index]);
+        g_free(s_client_formats[index]->data);
+        g_free(s_client_formats[index]);
         index++;
     }
-    g_free(g_client_formats);
-    g_client_formats = NULL;
+    g_free(s_client_formats);
+    s_client_formats = NULL;
     return 0;
 }
 
@@ -161,8 +161,8 @@ audin_send_formats(int chan_id)
     struct xr_wave_format_ex *wf;
 
     LOG_DEVEL(LOG_LEVEL_INFO, "audin_send_formats:");
-    num_formats = sizeof(g_server_formats) /
-                  sizeof(g_server_formats[0]) - 1;
+    num_formats = sizeof(s_server_formats) /
+                  sizeof(s_server_formats[0]) - 1;
     make_stream(s);
     init_stream(s, 8192 * num_formats);
     out_uint8(s, MSG_SNDIN_FORMATS);
@@ -170,7 +170,7 @@ audin_send_formats(int chan_id)
     out_uint32_le(s, 0); /* cbSizeFormatsPacket */
     for (index = 0; index < num_formats; index++)
     {
-        wf = g_server_formats[index];
+        wf = s_server_formats[index];
         LOG_DEVEL(LOG_LEVEL_INFO, "audin_send_formats: sending format wFormatTag 0x%4.4x "
                   "nChannels %d nSamplesPerSec %d",
                   wf->wFormatTag, wf->nChannels, wf->nSamplesPerSec);
@@ -200,7 +200,7 @@ audin_send_open(int chan_id)
     int error;
     int bytes;
     struct stream *s;
-    struct xr_wave_format_ex *wf = g_client_formats[g_current_format];
+    struct xr_wave_format_ex *wf = s_client_formats[s_current_format];
 
     LOG_DEVEL(LOG_LEVEL_INFO, "audin_send_open:");
     make_stream(s);
@@ -209,7 +209,7 @@ audin_send_open(int chan_id)
 
     out_uint8(s, MSG_SNDIN_OPEN);
     out_uint32_le(s, 2048); /* FramesPerPacket */
-    out_uint32_le(s, g_current_format); /* initialFormat */
+    out_uint32_le(s, s_current_format); /* initialFormat */
     out_uint16_le(s, wf->wFormatTag);
     out_uint16_le(s, wf->nChannels);
     out_uint32_le(s, wf->nSamplesPerSec);
@@ -263,7 +263,7 @@ audin_process_formats(int chan_id, struct stream *s)
     }
     in_uint32_le(s, num_formats);
     in_uint8s(s, 4); /* cbSizeFormatsPacket */
-    g_client_formats = g_new0(struct xr_wave_format_ex *, num_formats + 1);
+    s_client_formats = g_new0(struct xr_wave_format_ex *, num_formats + 1);
     for (index = 0; index < num_formats; index++)
     {
         if (!s_check_rem(s, 18))
@@ -272,7 +272,7 @@ audin_process_formats(int chan_id, struct stream *s)
             return 1;
         }
         wf = g_new0(struct xr_wave_format_ex, 1);
-        g_client_formats[index] = wf;
+        s_client_formats[index] = wf;
         in_uint16_le(s, wf->wFormatTag);
         in_uint16_le(s, wf->nChannels);
         in_uint32_le(s, wf->nSamplesPerSec);
@@ -360,9 +360,9 @@ audin_process_format_change(int chan_id, struct stream *s)
         LOG_DEVEL(LOG_LEVEL_ERROR, "audin_process_format_change: parse error");
         return 1;
     }
-    in_uint32_le(s, g_current_format);
-    LOG_DEVEL(LOG_LEVEL_INFO, "audin_process_format_change: g_current_format %d",
-              g_current_format);
+    in_uint32_le(s, s_current_format);
+    LOG_DEVEL(LOG_LEVEL_INFO, "audin_process_format_change: s_current_format %d",
+              s_current_format);
     return 0;
 }
 
@@ -418,10 +418,10 @@ static int
 audin_close_response(int chan_id)
 {
     LOG_DEVEL(LOG_LEVEL_INFO, "audin_close_response:");
-    g_audin_chanid = 0;
+    s_audin_chanid = 0;
     cleanup_client_formats();
-    free_stream(g_in_s);
-    g_in_s = NULL;
+    free_stream(s_in_s);
+    s_in_s = NULL;
     return 0;
 }
 
@@ -432,19 +432,19 @@ audin_data_fragment(int chan_id, char *data, int bytes)
     int rv;
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "audin_data_fragment:");
-    if (!s_check_rem(g_in_s, bytes))
+    if (!s_check_rem(s_in_s, bytes))
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "audin_data_fragment: error bytes %d left %d",
-                  bytes, (int) (g_in_s->end - g_in_s->p));
+                  bytes, (int) (s_in_s->end - s_in_s->p));
         return 1;
     }
-    out_uint8a(g_in_s, data, bytes);
-    if (g_in_s->p == g_in_s->end)
+    out_uint8a(s_in_s, data, bytes);
+    if (s_in_s->p == s_in_s->end)
     {
-        g_in_s->p = g_in_s->data;
-        rv = audin_process_msg(chan_id, g_in_s);
-        free_stream(g_in_s);
-        g_in_s = NULL;
+        s_in_s->p = s_in_s->data;
+        rv = audin_process_msg(chan_id, s_in_s);
+        free_stream(s_in_s);
+        s_in_s = NULL;
         return rv;
     }
     return 0;
@@ -455,14 +455,14 @@ static int
 audin_data_first(int chan_id, char *data, int bytes, int total_bytes)
 {
     LOG_DEVEL(LOG_LEVEL_DEBUG, "audin_data_first:");
-    if (g_in_s != NULL)
+    if (s_in_s != NULL)
     {
-        LOG_DEVEL(LOG_LEVEL_ERROR, "audin_data_first: warning g_in_s is not nil");
-        free_stream(g_in_s);
+        LOG_DEVEL(LOG_LEVEL_ERROR, "audin_data_first: warning s_in_s is not nil");
+        free_stream(s_in_s);
     }
-    make_stream(g_in_s);
-    init_stream(g_in_s, total_bytes);
-    g_in_s->end = g_in_s->data + total_bytes;
+    make_stream(s_in_s);
+    init_stream(s_in_s, total_bytes);
+    s_in_s->end = s_in_s->data + total_bytes;
     return audin_data_fragment(chan_id, data, bytes);
 }
 
@@ -473,7 +473,7 @@ audin_data(int chan_id, char *data, int bytes)
     struct stream ls;
 
     LOG_DEVEL_HEXDUMP(LOG_LEVEL_TRACE, "audin_data:", data, bytes);
-    if (g_in_s == NULL)
+    if (s_in_s == NULL)
     {
         g_memset(&ls, 0, sizeof(ls));
         ls.data = data;
@@ -489,13 +489,13 @@ int
 audin_init(void)
 {
     LOG_DEVEL(LOG_LEVEL_INFO, "audin_init:");
-    g_memset(&g_audin_info, 0, sizeof(g_audin_info));
-    g_audin_info.open_response = audin_open_response;
-    g_audin_info.close_response = audin_close_response;
-    g_audin_info.data_first = audin_data_first;
-    g_audin_info.data = audin_data;
-    g_audin_chanid = 0;
-    g_in_s = NULL;
+    g_memset(&s_audin_info, 0, sizeof(s_audin_info));
+    s_audin_info.open_response = audin_open_response;
+    s_audin_info.close_response = audin_close_response;
+    s_audin_info.data_first = audin_data_first;
+    s_audin_info.data = audin_data;
+    s_audin_chanid = 0;
+    s_in_s = NULL;
     return 0;
 }
 
@@ -514,7 +514,7 @@ audin_start(void)
     int error;
 
     LOG_DEVEL(LOG_LEVEL_INFO, "audin_start:");
-    if (g_audin_chanid != 0 || g_in_fifo == NULL)
+    if (s_audin_chanid != 0 || g_in_fifo == NULL)
     {
         return 1;
     }
@@ -524,9 +524,9 @@ audin_start(void)
     g_bytes_in_fifo = 0;
 
     error = chansrv_drdynvc_open(AUDIN_NAME, AUDIN_FLAGS,
-                                 &g_audin_info, /* callback functions */
-                                 &g_audin_chanid); /* chansrv chan_id */
-    LOG_DEVEL(LOG_LEVEL_ERROR, "audin_start: error %d g_audin_chanid %d", error, g_audin_chanid);
+                                 &s_audin_info, /* callback functions */
+                                 &s_audin_chanid); /* chansrv chan_id */
+    LOG_DEVEL(LOG_LEVEL_ERROR, "audin_start: error %d s_audin_chanid %d", error, s_audin_chanid);
     return error;
 }
 
@@ -535,6 +535,6 @@ int
 audin_stop(void)
 {
     LOG_DEVEL(LOG_LEVEL_INFO, "audin_stop:");
-    chansrv_drdynvc_close(g_audin_chanid);
+    chansrv_drdynvc_close(s_audin_chanid);
     return 0;
 }

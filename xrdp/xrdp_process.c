@@ -24,7 +24,7 @@
 
 #include "xrdp.h"
 
-static int g_session_id = 0;
+static int s_session_id = 0;
 
 /*****************************************************************************/
 /* always called from xrdp_listen thread */
@@ -38,8 +38,8 @@ xrdp_process_create(struct xrdp_listen *owner, tbus done_event)
     self = (struct xrdp_process *)g_malloc(sizeof(struct xrdp_process), 1);
     self->lis_layer = owner;
     self->done_event = done_event;
-    g_session_id++;
-    self->session_id = g_session_id;
+    s_session_id++;
+    self->session_id = s_session_id;
     pid = g_getpid();
     g_snprintf(event_name, 255, "xrdp_%8.8x_process_self_term_event_%8.8x",
                pid, self->session_id);

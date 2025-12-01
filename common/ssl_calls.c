@@ -47,15 +47,15 @@
 /*
  * Globals used by openssl 3 and later */
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-static EVP_MD *g_md_md5;    /* MD5 message digest */
-static EVP_MD *g_md_sha1;   /* SHA1 message digest */
-static EVP_CIPHER *g_cipher_des_ede3_cbc; /* DES3 CBC cipher */
-static EVP_MAC *g_mac_hmac; /* HMAC MAC */
+static EVP_MD *s_md_md5;    /* MD5 message digest */
+static EVP_MD *s_md_sha1;   /* SHA1 message digest */
+static EVP_CIPHER *s_cipher_des_ede3_cbc; /* DES3 CBC cipher */
+static EVP_MAC *s_mac_hmac; /* HMAC MAC */
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x10101000L
 #define HAS_KEYLOG_CALLBACK /* SSL_CTX_set_keylog_callback() is available */
-static char *g_keylog_filename = NULL;
+static char *s_keylog_filename = NULL;
 #endif
 
 /* definition of ssl_tls */
@@ -177,19 +177,19 @@ ssl_finish(void)
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     /* De-allocate any allocated globals
      * For OpenSSL 3, these can all safely be passed a NULL pointer */
-    EVP_MD_free(g_md_md5);
-    g_md_md5 = NULL;
-    EVP_MD_free(g_md_sha1);
-    g_md_sha1 = NULL;
-    EVP_CIPHER_free(g_cipher_des_ede3_cbc);
-    g_cipher_des_ede3_cbc = NULL;
-    EVP_MAC_free(g_mac_hmac);
-    g_mac_hmac = NULL;
+    EVP_MD_free(s_md_md5);
+    s_md_md5 = NULL;
+    EVP_MD_free(s_md_sha1);
+    s_md_sha1 = NULL;
+    EVP_CIPHER_free(s_cipher_des_ede3_cbc);
+    s_cipher_des_ede3_cbc = NULL;
+    EVP_MAC_free(s_mac_hmac);
+    s_mac_hmac = NULL;
 #endif
 
 #ifdef HAS_KEYLOG_CALLBACK
-    free(g_keylog_filename);
-    g_keylog_filename = NULL;
+    free(s_keylog_filename);
+    s_keylog_filename = NULL;
 #endif
     return 0;
 }
@@ -203,8 +203,8 @@ ssl_set_pre_master_secret_logfile(const char *filename)
     int fd = -1;
 
     /* Remove any existing setting */
-    free(g_keylog_filename);
-    g_keylog_filename = NULL;
+    free(s_keylog_filename);
+    s_keylog_filename = NULL;
 
     if (filename == NULL || filename[0] == '\0')
     {
@@ -231,7 +231,7 @@ ssl_set_pre_master_secret_logfile(const char *filename)
             filename, g_get_strerror());
 
     }
-    else if ((g_keylog_filename = g_strdup(filename)) == NULL)
+    else if ((s_keylog_filename = g_strdup(filename)) == NULL)
     {
         LOG(LOG_LEVEL_ERROR, "Out of memory setting TLS pre-master log");
     }
@@ -252,13 +252,13 @@ ssl_set_pre_master_secret_logfile(const char *filename)
 static void
 log_pre_master_secret(const SSL *ssl, const char *line)
 {
-    if (g_keylog_filename != NULL && g_keylog_filename[0] == '/')
+    if (s_keylog_filename != NULL && s_keylog_filename[0] == '/')
     {
-        int fd = g_file_open_rw(g_keylog_filename);
+        int fd = g_file_open_rw(s_keylog_filename);
         if (fd < 0)
         {
             LOG(LOG_LEVEL_ERROR, "Can't write pre-master secret to %s [ %s]",
-                g_keylog_filename, g_get_strerror());
+                s_keylog_filename, g_get_strerror());
         }
         else
         {
@@ -397,9 +397,9 @@ ssl_sha1_info_create(void)
      * If we can't get the digest loaded, there's a problem with the
      * library providers, so there's no point in us returning anything useful.
      * If we do load the digest, it's used later */
-    if (g_md_sha1 == NULL)
+    if (s_md_sha1 == NULL)
     {
-        if ((g_md_sha1 = EVP_MD_fetch(NULL, "sha1", NULL)) == NULL)
+        if ((s_md_sha1 = EVP_MD_fetch(NULL, "sha1", NULL)) == NULL)
         {
             dump_error_stack("sha1");
             return NULL;
@@ -430,7 +430,7 @@ ssl_sha1_clear(void *sha1_info)
 #else
     if (sha1_info != NULL)
     {
-        EVP_DigestInit_ex((EVP_MD_CTX *)sha1_info, g_md_sha1, NULL);
+        EVP_DigestInit_ex((EVP_MD_CTX *)sha1_info, s_md_sha1, NULL);
     }
 #endif
 }
@@ -477,9 +477,9 @@ ssl_md5_info_create(void)
      * If we can't get the digest loaded, there's a problem with the
      * library providers, so there's no point in us returning anything useful.
      * If we do load the digest, it's used later */
-    if (g_md_md5 == NULL)
+    if (s_md_md5 == NULL)
     {
-        if ((g_md_md5 = EVP_MD_fetch(NULL, "md5", NULL)) == NULL)
+        if ((s_md_md5 = EVP_MD_fetch(NULL, "md5", NULL)) == NULL)
         {
             dump_error_stack("md5");
             return NULL;
@@ -510,7 +510,7 @@ ssl_md5_clear(void *md5_info)
 #else
     if (md5_info != NULL)
     {
-        EVP_DigestInit_ex((EVP_MD_CTX *)md5_info, g_md_md5, NULL);
+        EVP_DigestInit_ex((EVP_MD_CTX *)md5_info, s_md_md5, NULL);
     }
 #endif
 }
@@ -558,10 +558,10 @@ ssl_des3_encrypt_info_create(const char *key, const char *ivec)
      * For these versions of OpenSSL, there are no long-term guarantees the
      * DES3 cipher will be available. We'll try to load it here so we
      * can log any errors */
-    if (g_cipher_des_ede3_cbc == NULL)
+    if (s_cipher_des_ede3_cbc == NULL)
     {
-        g_cipher_des_ede3_cbc = EVP_CIPHER_fetch(NULL, "des-ede3-cbc", NULL);
-        if (g_cipher_des_ede3_cbc == NULL)
+        s_cipher_des_ede3_cbc = EVP_CIPHER_fetch(NULL, "des-ede3-cbc", NULL);
+        if (s_cipher_des_ede3_cbc == NULL)
         {
             dump_error_stack("DES-EDE3-CBC");
             return NULL;
@@ -575,7 +575,7 @@ ssl_des3_encrypt_info_create(const char *key, const char *ivec)
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     EVP_EncryptInit_ex(des3_ctx, EVP_des_ede3_cbc(), NULL, lkey, livec);
 #else
-    EVP_EncryptInit_ex(des3_ctx, g_cipher_des_ede3_cbc, NULL, lkey, livec);
+    EVP_EncryptInit_ex(des3_ctx, s_cipher_des_ede3_cbc, NULL, lkey, livec);
 #endif
     EVP_CIPHER_CTX_set_padding(des3_ctx, 0);
     return des3_ctx;
@@ -594,10 +594,10 @@ ssl_des3_decrypt_info_create(const char *key, const char *ivec)
      * For these versions of OpenSSL, there are no long-term guarantees the
      * DES3 cipher will be available. We'll try to load it here so we
      * can log any errors */
-    if (g_cipher_des_ede3_cbc == NULL)
+    if (s_cipher_des_ede3_cbc == NULL)
     {
-        g_cipher_des_ede3_cbc = EVP_CIPHER_fetch(NULL, "des-ede3-cbc", NULL);
-        if (g_cipher_des_ede3_cbc == NULL)
+        s_cipher_des_ede3_cbc = EVP_CIPHER_fetch(NULL, "des-ede3-cbc", NULL);
+        if (s_cipher_des_ede3_cbc == NULL)
         {
             dump_error_stack("DES-EDE3-CBC");
             return NULL;
@@ -611,7 +611,7 @@ ssl_des3_decrypt_info_create(const char *key, const char *ivec)
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     EVP_DecryptInit_ex(des3_ctx, EVP_des_ede3_cbc(), NULL, lkey, livec);
 #else
-    EVP_DecryptInit_ex(des3_ctx, g_cipher_des_ede3_cbc, NULL, lkey, livec);
+    EVP_DecryptInit_ex(des3_ctx, s_cipher_des_ede3_cbc, NULL, lkey, livec);
 #endif
     EVP_CIPHER_CTX_set_padding(des3_ctx, 0);
     return des3_ctx;
@@ -678,16 +678,16 @@ ssl_hmac_info_create(void)
     return (HMAC_CTX *)HMAC_CTX_new();
 #else
     /* Need a MAC algorithm loaded */
-    if (g_mac_hmac == NULL)
+    if (s_mac_hmac == NULL)
     {
-        if ((g_mac_hmac = EVP_MAC_fetch(NULL, "hmac", NULL)) == NULL)
+        if ((s_mac_hmac = EVP_MAC_fetch(NULL, "hmac", NULL)) == NULL)
         {
             dump_error_stack("hmac");
             return NULL;
         }
     }
 
-    return (void *)EVP_MAC_CTX_new(g_mac_hmac);
+    return (void *)EVP_MAC_CTX_new(s_mac_hmac);
 #endif
 }
 

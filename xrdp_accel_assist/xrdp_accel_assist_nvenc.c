@@ -42,15 +42,15 @@ typedef NVENCSTATUS
 (NVENCAPI *NvEncodeAPICreateInstanceProc)
 (NV_ENCODE_API_FUNCTION_LIST *functionList);
 
-static char g_lib_name[] = "libnvidia-encode.so";
-static char g_lib_name1[] = "libnvidia-encode.so.1";
-static char g_func_name[] = "NvEncodeAPICreateInstance";
+static char s_lib_name[] = "libnvidia-encode.so";
+static char s_lib_name1[] = "libnvidia-encode.so.1";
+static char s_func_name[] = "NvEncodeAPICreateInstance";
 
-static NvEncodeAPICreateInstanceProc g_NvEncodeAPICreateInstance = NULL;
+static NvEncodeAPICreateInstanceProc s_NvEncodeAPICreateInstance = NULL;
 
-static NV_ENCODE_API_FUNCTION_LIST g_enc_funcs;
+static NV_ENCODE_API_FUNCTION_LIST s_enc_funcs;
 
-static long g_lib = 0;
+static long s_lib = 0;
 
 struct enc_info
 {
@@ -71,25 +71,25 @@ xrdp_accel_assist_nvenc_init(void)
 {
     NVENCSTATUS nv_error;
 
-    g_lib = g_load_library(g_lib_name);
-    if (g_lib == 0)
+    s_lib = g_load_library(s_lib_name);
+    if (s_lib == 0)
     {
-        g_lib = g_load_library(g_lib_name1);
-        if (g_lib == 0)
+        s_lib = g_load_library(s_lib_name1);
+        if (s_lib == 0)
         {
-            LOG(LOG_LEVEL_ERROR, "load library for %s/%s failed", g_lib_name, g_lib_name1);
+            LOG(LOG_LEVEL_ERROR, "load library for %s/%s failed", s_lib_name, s_lib_name1);
             return 1;
         }
     }
-    g_NvEncodeAPICreateInstance = g_get_proc_address(g_lib, g_func_name);
-    if (g_NvEncodeAPICreateInstance == NULL)
+    s_NvEncodeAPICreateInstance = g_get_proc_address(s_lib, s_func_name);
+    if (s_NvEncodeAPICreateInstance == NULL)
     {
-        LOG(LOG_LEVEL_ERROR, "get proc address for %s failed", g_func_name);
+        LOG(LOG_LEVEL_ERROR, "get proc address for %s failed", s_func_name);
         return 1;
     }
-    g_memset(&g_enc_funcs, 0, sizeof(g_enc_funcs));
-    g_enc_funcs.version = NV_ENCODE_API_FUNCTION_LIST_VER;
-    nv_error = g_NvEncodeAPICreateInstance(&g_enc_funcs);
+    g_memset(&s_enc_funcs, 0, sizeof(s_enc_funcs));
+    s_enc_funcs.version = NV_ENCODE_API_FUNCTION_LIST_VER;
+    nv_error = s_NvEncodeAPICreateInstance(&s_enc_funcs);
     LOG(LOG_LEVEL_INFO, "NvEncodeAPICreateInstance rv %d", nv_error);
     if (nv_error != NV_ENC_SUCCESS)
     {
@@ -129,7 +129,7 @@ xrdp_accel_assist_nvenc_create_encoder(int width, int height, int tex,
     params.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
     params.deviceType = NV_ENC_DEVICE_TYPE_OPENGL;
     params.apiVersion = NVENCAPI_VERSION;
-    nv_error = g_enc_funcs.nvEncOpenEncodeSessionEx(&params, &(lei->enc));
+    nv_error = s_enc_funcs.nvEncOpenEncodeSessionEx(&params, &(lei->enc));
     LOG(LOG_LEVEL_INFO, "nvEncOpenEncodeSessionEx rv %d enc %p", nv_error, lei->enc);
     if (nv_error != NV_ENC_SUCCESS)
     {
@@ -222,7 +222,7 @@ xrdp_accel_assist_nvenc_create_encoder(int width, int height, int tex,
     createEncodeParams.frameRateDen = 1;
     createEncodeParams.enablePTD = 1;
     createEncodeParams.encodeConfig = &encCfg;
-    nv_error = g_enc_funcs.nvEncInitializeEncoder(lei->enc,
+    nv_error = s_enc_funcs.nvEncInitializeEncoder(lei->enc,
                &createEncodeParams);
     LOG(LOG_LEVEL_INFO, "nvEncInitializeEncoder rv %d", nv_error);
     if (nv_error != NV_ENC_SUCCESS)
@@ -252,7 +252,7 @@ xrdp_accel_assist_nvenc_create_encoder(int width, int height, int tex,
     }
     reg_res.resourceToRegister = &res;
     reg_res.bufferUsage = NV_ENC_INPUT_IMAGE;
-    nv_error = g_enc_funcs.nvEncRegisterResource(lei->enc, &reg_res);
+    nv_error = s_enc_funcs.nvEncRegisterResource(lei->enc, &reg_res);
     LOG(LOG_LEVEL_INFO, "nvEncRegisterResource rv %d", nv_error);
     if (nv_error != NV_ENC_SUCCESS)
     {
@@ -263,7 +263,7 @@ xrdp_accel_assist_nvenc_create_encoder(int width, int height, int tex,
     g_memset(&mapInputResource, 0, sizeof(mapInputResource));
     mapInputResource.version = NV_ENC_LOCK_INPUT_BUFFER_VER;
     mapInputResource.registeredResource = reg_res.registeredResource;
-    nv_error = g_enc_funcs.nvEncMapInputResource(lei->enc, &mapInputResource);
+    nv_error = s_enc_funcs.nvEncMapInputResource(lei->enc, &mapInputResource);
     LOG(LOG_LEVEL_INFO, "nvEncMapInputResource rv %d", nv_error);
     if (nv_error != NV_ENC_SUCCESS)
     {
@@ -273,7 +273,7 @@ xrdp_accel_assist_nvenc_create_encoder(int width, int height, int tex,
 
     g_memset(&bitstreamParams, 0, sizeof(bitstreamParams));
     bitstreamParams.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
-    nv_error = g_enc_funcs.nvEncCreateBitstreamBuffer(lei->enc,
+    nv_error = s_enc_funcs.nvEncCreateBitstreamBuffer(lei->enc,
                &bitstreamParams);
     LOG(LOG_LEVEL_INFO, "nvEncCreateBitstreamBuffer rv %d", nv_error);
     if (nv_error != NV_ENC_SUCCESS)
@@ -298,10 +298,10 @@ xrdp_accel_assist_nvenc_create_encoder(int width, int height, int tex,
 int
 xrdp_accel_assist_nvenc_delete_encoder(struct enc_info *ei)
 {
-    g_enc_funcs.nvEncUnmapInputResource(ei->enc, ei->mappedResource);
-    g_enc_funcs.nvEncUnregisterResource(ei->enc, ei->registeredResource);
-    g_enc_funcs.nvEncDestroyBitstreamBuffer(ei->enc, ei->bitstreamBuffer);
-    g_enc_funcs.nvEncDestroyEncoder(ei->enc);
+    s_enc_funcs.nvEncUnmapInputResource(ei->enc, ei->mappedResource);
+    s_enc_funcs.nvEncUnregisterResource(ei->enc, ei->registeredResource);
+    s_enc_funcs.nvEncDestroyBitstreamBuffer(ei->enc, ei->bitstreamBuffer);
+    s_enc_funcs.nvEncDestroyEncoder(ei->enc);
     g_free(ei);
     return 0;
 }
@@ -336,7 +336,7 @@ xrdp_accel_assist_nvenc_encode(struct enc_info *ei, int tex,
         LOG(LOG_LEVEL_INFO, "Forcing NVENC H264 IDR SPSPPS for frame id: %d",
             ei->frameCount);
     }
-    nv_error = g_enc_funcs.nvEncEncodePicture(ei->enc, &picParams);
+    nv_error = s_enc_funcs.nvEncEncodePicture(ei->enc, &picParams);
     rv = ENCODER_ERROR;
     if (nv_error == NV_ENC_SUCCESS)
     {
@@ -344,7 +344,7 @@ xrdp_accel_assist_nvenc_encode(struct enc_info *ei, int tex,
         lockBitstream.version = NV_ENC_LOCK_BITSTREAM_VER;
         lockBitstream.outputBitstream = ei->bitstreamBuffer;
         lockBitstream.doNotWait = 0;
-        nv_error = g_enc_funcs.nvEncLockBitstream(ei->enc, &lockBitstream);
+        nv_error = s_enc_funcs.nvEncLockBitstream(ei->enc, &lockBitstream);
         if (nv_error == NV_ENC_SUCCESS)
         {
             if (*cdata_bytes >= ((int) (lockBitstream.bitstreamSizeInBytes)))
@@ -360,7 +360,7 @@ xrdp_accel_assist_nvenc_encode(struct enc_info *ei, int tex,
                     *cdata_bytes,
                     (int) (lockBitstream.bitstreamSizeInBytes));
             }
-            g_enc_funcs.nvEncUnlockBitstream(ei->enc,
+            s_enc_funcs.nvEncUnlockBitstream(ei->enc,
                                              lockBitstream.outputBitstream);
         }
         else

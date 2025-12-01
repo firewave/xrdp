@@ -34,7 +34,7 @@
 #define PACKAGE_VERSION "???"
 #endif
 
-static struct xrdp_listen *g_listen = 0;
+static struct xrdp_listen *s_listen = 0;
 
 
 /*****************************************************************************/
@@ -751,8 +751,8 @@ main(int argc, char **argv)
         /* end of daemonizing code */
     }
 
-    g_listen = xrdp_listen_create(&startup_params);
-    if (xrdp_listen_init(g_listen) != 0)
+    s_listen = xrdp_listen_create(&startup_params);
+    if (xrdp_listen_init(s_listen) != 0)
     {
         LOG(LOG_LEVEL_ALWAYS, "Failed to start xrdp daemon, "
             "possibly address already in use.");
@@ -793,10 +793,10 @@ main(int argc, char **argv)
             LOG(LOG_LEVEL_WARNING, "error creating g_sync_event");
         }
 
-        exit_status = xrdp_listen_main_loop(g_listen);
+        exit_status = xrdp_listen_main_loop(s_listen);
     }
 
-    xrdp_listen_delete(g_listen);
+    xrdp_listen_delete(s_listen);
 
     tc_mutex_delete(g_get_sync_mutex());
     g_set_sync_mutex(0);

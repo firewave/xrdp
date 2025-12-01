@@ -148,7 +148,7 @@ union sock_info
 };
 
 /******************************************************************************/
-static oom_type g_out_of_memory_handler;
+static oom_type s_out_of_memory_handler;
 
 /*****************************************************************************/
 int
@@ -4126,7 +4126,7 @@ g_gethostname(char *name, int len)
     return gethostname(name, len);
 }
 
-static unsigned char g_reverse_byte[0x100] =
+static unsigned char s_reverse_byte[0x100] =
 {
     0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
     0x10, 0x90, 0x50, 0xd0, 0x30, 0xb0, 0x70, 0xf0,
@@ -4174,7 +4174,7 @@ g_mirror_memcpy(void *dst, const void *src, int len)
     src8 = (const tui8 *) src;
     while (len > 0)
     {
-        *dst8 = g_reverse_byte[*src8];
+        *dst8 = s_reverse_byte[*src8];
         dst8++;
         src8++;
         len--;
@@ -4406,8 +4406,8 @@ g_readdir(const char *dir)
 oom_type
 g_set_out_of_memory_handler(oom_type new_handler)
 {
-    oom_type old_handler = g_out_of_memory_handler;
-    g_out_of_memory_handler = new_handler;
+    oom_type old_handler = s_out_of_memory_handler;
+    s_out_of_memory_handler = new_handler;
     return old_handler;
 }
 
@@ -4415,9 +4415,9 @@ g_set_out_of_memory_handler(oom_type new_handler)
 static void
 out_of_memory(void)
 {
-    if (g_out_of_memory_handler != NULL)
+    if (s_out_of_memory_handler != NULL)
     {
-        g_out_of_memory_handler();
+        s_out_of_memory_handler();
         _exit(1);
     }
     else

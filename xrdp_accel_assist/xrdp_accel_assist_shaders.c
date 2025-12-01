@@ -20,14 +20,14 @@
  * this file is not compiled directly, it is included in
  * xrdp_accel_assist_x11.c */
 
-static const GLchar g_vs[] = "\
+static const GLchar s_vs[] = "\
 attribute vec4 position;\n\
 void main(void)\n\
 {\n\
     gl_Position = vec4(position.xy, 0.0, 1.0);\n\
 }\n";
 
-static const GLchar g_fs_copy[] = "\
+static const GLchar s_fs_copy[] = "\
 uniform sampler2D tex;\n\
 uniform vec2 tex_size;\n\
 void main(void)\n\
@@ -35,7 +35,7 @@ void main(void)\n\
     gl_FragColor = texture2D(tex, gl_FragCoord.xy / tex_size);\n\
 }\n";
 
-static const GLchar g_fs_rgb_to_yuv420[] = "\
+static const GLchar s_fs_rgb_to_yuv420[] = "\
 uniform sampler2D tex;\n\
 uniform vec2 tex_size;\n\
 uniform vec4 ymath;\n\
@@ -83,7 +83,7 @@ void main(void)\n\
     }\n\
 }\n";
 
-static const GLchar g_fs_rgb_to_yuv422[] = "\
+static const GLchar s_fs_rgb_to_yuv422[] = "\
 uniform sampler2D tex;\n\
 uniform vec2 tex_size;\n\
 uniform vec4 ymath;\n\
@@ -112,7 +112,7 @@ void main(void)\n\
     gl_FragColor = clamp(pix, 0.0, 1.0);\n\
 }\n";
 
-static const GLchar g_fs_rgb_to_yuv444[] = "\
+static const GLchar s_fs_rgb_to_yuv444[] = "\
 uniform sampler2D tex;\n\
 uniform vec2 tex_size;\n\
 uniform vec4 ymath;\n\
@@ -160,7 +160,7 @@ MAIN VIEW - NV12
     ...
     0E 0E 2E 2E 4E 4E 6E 6E 8E 8E AE AE CE CE EE EE
 */
-static const GLchar g_fs_rgb_to_yuv420_mv[] = "\
+static const GLchar s_fs_rgb_to_yuv420_mv[] = "\
 uniform sampler2D tex;\n\
 uniform vec2 tex_size;\n\
 uniform vec4 ymath;\n\
@@ -221,7 +221,7 @@ AUXILIARY VIEW - NV12
     ...
     1E 1E 3E 3E 5E 5E 7E 7E 9E 9E BE BE DE DE FE FE
 */
-static const GLchar g_fs_rgb_to_yuv420_av[] = "\
+static const GLchar s_fs_rgb_to_yuv420_av[] = "\
 uniform sampler2D tex;\n\
 uniform vec2 tex_size;\n\
 uniform vec4 umath;\n\
@@ -291,7 +291,7 @@ AUXILIARY VIEW V2 - NV12
     ...
     0F 2F 4F 6F 8F AF CF EF 0F 2F 4F 6F 8F AF CF EF
 */
-static const GLchar g_fs_rgb_to_yuv420_av_v2[] = "\
+static const GLchar s_fs_rgb_to_yuv420_av_v2[] = "\
 uniform sampler2D tex;\n\
 uniform vec2 tex_size;\n\
 uniform vec4 umath;\n\

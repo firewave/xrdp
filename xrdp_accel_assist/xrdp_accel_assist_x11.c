@@ -61,10 +61,10 @@
 Display *g_display = NULL;
 int g_x_socket = 0;
 int g_screen_num = 0;
-static Screen *g_screen = NULL;
+static Screen *s_screen = NULL;
 Window g_root_window = None;
-static Visual *g_vis = NULL;
-static GC g_gc;
+static Visual *s_vis = NULL;
+static GC s_gc;
 
 /* encoders: nvenc or va */
 struct enc_funcs
@@ -78,7 +78,7 @@ struct enc_funcs
                                   int flags);
 };
 
-static struct enc_funcs g_enc_funcs[] =
+static struct enc_funcs s_enc_funcs[] =
 {
     {
         NULL, NULL, NULL, NULL
@@ -105,7 +105,7 @@ struct inf_funcs
     int (*release_tex_image)(inf_image_t inf_image);
 };
 
-static struct inf_funcs g_inf_funcs[] =
+static struct inf_funcs s_inf_funcs[] =
 {
     {
         xrdp_accel_assist_inf_egl_init,
@@ -129,8 +129,8 @@ static struct inf_funcs g_inf_funcs[] =
 #define INF_GLX     1
 #define ENC_VA      0
 #define ENC_NVENC   1
-static int g_inf = INF_EGL;
-static int g_enc = ENC_VA;
+static int s_inf = INF_EGL;
+static int s_enc = ENC_VA;
 
 struct mon_info
 {
@@ -150,10 +150,10 @@ struct mon_info
 };
 
 #define MAX_MON 16
-static struct mon_info g_mons[MAX_MON];
+static struct mon_info s_mons[MAX_MON];
 
-static GLuint g_quad_vao = 0;
-static GLuint g_fb = 0;
+static GLuint s_quad_vao = 0;
+static GLuint s_fb = 0;
 
 #define XH_SHADERCOPY           0
 #define XH_SHADERRGB2YUV420     1
@@ -177,10 +177,10 @@ struct shader_info
     GLint vmath_loc;
     int current_matrix;
 };
-static struct shader_info g_si[XH_NUM_SHADERS];
+static struct shader_info s_si[XH_NUM_SHADERS];
 
 /* *INDENT-OFF* */
-static const GLfloat g_vertices[] =
+static const GLfloat s_vertices[] =
 {
     -1.0f,  1.0f,
     -1.0f, -1.0f,
@@ -196,7 +196,7 @@ struct rgb2yuv_matrix
     GLfloat vmath[4];
 };
 
-static struct rgb2yuv_matrix g_rgb2yux_matrix[3] =
+static struct rgb2yuv_matrix s_rgb2yux_matrix[3] =
 {
     {
         /* yuv bt601 lagecy */
@@ -243,18 +243,18 @@ xrdp_accel_assist_x11_init(void)
     }
     g_x_socket = XConnectionNumber(g_display);
     g_screen_num = DefaultScreen(g_display);
-    g_screen = ScreenOfDisplay(g_display, g_screen_num);
-    g_root_window = RootWindowOfScreen(g_screen);
-    g_vis = XDefaultVisual(g_display, g_screen_num);
-    g_gc = DefaultGC(g_display, 0);
+    s_screen = ScreenOfDisplay(g_display, g_screen_num);
+    g_root_window = RootWindowOfScreen(s_screen);
+    s_vis = XDefaultVisual(g_display, g_screen_num);
+    s_gc = DefaultGC(g_display, 0);
     if (XQueryExtension(g_display, "NV-CONTROL", &major_opcode, &first_event,
                         &first_error))
     {
         LOG(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_init: "
             "detected NVIDIA XServer");
-        g_inf = INF_GLX;
-        g_enc = ENC_NVENC;
-        if (g_inf_funcs[g_inf].init() != 0)
+        s_inf = INF_GLX;
+        s_enc = ENC_NVENC;
+        if (s_inf_funcs[s_inf].init() != 0)
         {
             LOG(LOG_LEVEL_ERROR, "xrdp_accel_assist_x11_init: "
                 "GLX init failed");
@@ -264,9 +264,9 @@ xrdp_accel_assist_x11_init(void)
     }
     else
     {
-        g_inf = INF_EGL;
-        g_enc = ENC_VA;
-        if (g_inf_funcs[g_inf].init() != 0)
+        s_inf = INF_EGL;
+        s_enc = ENC_VA;
+        if (s_inf_funcs[s_inf].init() != 0)
         {
             LOG(LOG_LEVEL_ERROR, "xrdp_accel_assist_x11_init: "
                 "EGL init failed");
@@ -287,15 +287,15 @@ xrdp_accel_assist_x11_init(void)
     LOG(LOG_LEVEL_INFO, "version: %s",
         (const char *) glGetString(GL_VERSION));
     /* create vertex array */
-    glGenVertexArrays(1, &g_quad_vao);
-    glBindVertexArray(g_quad_vao);
+    glGenVertexArrays(1, &s_quad_vao);
+    glBindVertexArray(s_quad_vao);
     glGenBuffers(1, &quad_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertices), g_vertices,
+    glBufferData(GL_ARRAY_BUFFER, sizeof(s_vertices), s_vertices,
                  GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, NULL);
-    glGenFramebuffers(1, &g_fb);
+    glGenFramebuffers(1, &s_fb);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     glDeleteBuffers(1, &quad_vbo);
@@ -324,63 +324,63 @@ xrdp_accel_assist_x11_init(void)
 
     for (index = 0; index < XH_NUM_SHADERS; index++)
     {
-        g_si[index].vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-        g_si[index].fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+        s_si[index].vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+        s_si[index].fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
         vlength = g_strlen(vsource[index]);
         flength = g_strlen(fsource[index]);
-        glShaderSource(g_si[index].vertex_shader, 1,
+        glShaderSource(s_si[index].vertex_shader, 1,
                        &(vsource[index]), &vlength);
-        glShaderSource(g_si[index].fragment_shader, 1,
+        glShaderSource(s_si[index].fragment_shader, 1,
                        &(fsource[index]), &flength);
-        glCompileShader(g_si[index].vertex_shader);
-        glGetShaderiv(g_si[index].vertex_shader, GL_COMPILE_STATUS,
+        glCompileShader(s_si[index].vertex_shader);
+        glGetShaderiv(s_si[index].vertex_shader, GL_COMPILE_STATUS,
                       &compiled);
         LOG(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_init: "
             "vertex_shader compiled %d", compiled);
-        glCompileShader(g_si[index].fragment_shader);
-        glGetShaderiv(g_si[index].fragment_shader, GL_COMPILE_STATUS,
+        glCompileShader(s_si[index].fragment_shader);
+        glGetShaderiv(s_si[index].fragment_shader, GL_COMPILE_STATUS,
                       &compiled);
         LOG(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_init: "
             "fragment_shader compiled %d", compiled);
-        g_si[index].program = glCreateProgram();
-        glAttachShader(g_si[index].program, g_si[index].vertex_shader);
-        glAttachShader(g_si[index].program, g_si[index].fragment_shader);
-        glLinkProgram(g_si[index].program);
-        glGetProgramiv(g_si[index].program, GL_LINK_STATUS, &linked);
+        s_si[index].program = glCreateProgram();
+        glAttachShader(s_si[index].program, s_si[index].vertex_shader);
+        glAttachShader(s_si[index].program, s_si[index].fragment_shader);
+        glLinkProgram(s_si[index].program);
+        glGetProgramiv(s_si[index].program, GL_LINK_STATUS, &linked);
         LOG(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_init: linked %d", linked);
-        g_si[index].tex_loc =
-            glGetUniformLocation(g_si[index].program, "tex");
-        g_si[index].tex_size_loc =
-            glGetUniformLocation(g_si[index].program, "tex_size");
-        g_si[index].ymath_loc =
-            glGetUniformLocation(g_si[index].program, "ymath");
-        g_si[index].umath_loc =
-            glGetUniformLocation(g_si[index].program, "umath");
-        g_si[index].vmath_loc =
-            glGetUniformLocation(g_si[index].program, "vmath");
+        s_si[index].tex_loc =
+            glGetUniformLocation(s_si[index].program, "tex");
+        s_si[index].tex_size_loc =
+            glGetUniformLocation(s_si[index].program, "tex_size");
+        s_si[index].ymath_loc =
+            glGetUniformLocation(s_si[index].program, "ymath");
+        s_si[index].umath_loc =
+            glGetUniformLocation(s_si[index].program, "umath");
+        s_si[index].vmath_loc =
+            glGetUniformLocation(s_si[index].program, "vmath");
         LOG(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_init: tex_loc %d "
             "tex_size_loc %d ymath_loc %d umath_loc %d vmath_loc %d",
-            g_si[index].tex_loc, g_si[index].tex_size_loc,
-            g_si[index].ymath_loc, g_si[index].umath_loc,
-            g_si[index].vmath_loc);
+            s_si[index].tex_loc, s_si[index].tex_size_loc,
+            s_si[index].ymath_loc, s_si[index].umath_loc,
+            s_si[index].vmath_loc);
         /* set default matrix */
-        glUseProgram(g_si[index].program);
-        if (g_si[index].ymath_loc >= 0)
+        glUseProgram(s_si[index].program);
+        if (s_si[index].ymath_loc >= 0)
         {
-            glUniform4fv(g_si[index].ymath_loc, 1, g_rgb2yux_matrix[1].ymath);
+            glUniform4fv(s_si[index].ymath_loc, 1, s_rgb2yux_matrix[1].ymath);
         }
-        if (g_si[index].umath_loc >= 0)
+        if (s_si[index].umath_loc >= 0)
         {
-            glUniform4fv(g_si[index].umath_loc, 1, g_rgb2yux_matrix[1].umath);
+            glUniform4fv(s_si[index].umath_loc, 1, s_rgb2yux_matrix[1].umath);
         }
-        if (g_si[index].vmath_loc >= 0)
+        if (s_si[index].vmath_loc >= 0)
         {
-            glUniform4fv(g_si[index].vmath_loc, 1, g_rgb2yux_matrix[1].vmath);
+            glUniform4fv(s_si[index].vmath_loc, 1, s_rgb2yux_matrix[1].vmath);
         }
         glUseProgram(0);
     }
-    g_memset(g_mons, 0, sizeof(g_mons));
-    if (g_enc_funcs[g_enc].init() != 0)
+    g_memset(s_mons, 0, sizeof(s_mons));
+    if (s_enc_funcs[s_enc].init() != 0)
     {
         LOG(LOG_LEVEL_ERROR, "xrdp_accel_assist_x11_init: "
             "encoder init failed");
@@ -422,13 +422,13 @@ xrdp_accel_assist_x11_delete_all_pixmaps(void)
 
     for (index = 0; index < MAX_MON; index++)
     {
-        mi = g_mons + index;
+        mi = s_mons + index;
         if (mi->pixmap != 0)
         {
-            g_enc_funcs[g_enc].destroy_enc(mi->ei);
+            s_enc_funcs[s_enc].destroy_enc(mi->ei);
             glDeleteTextures(1, &(mi->bmp_texture));
             glDeleteTextures(1, &(mi->enc_texture));
-            g_inf_funcs[g_inf].destroy_image(mi->inf_image);
+            s_inf_funcs[s_inf].destroy_image(mi->inf_image);
             XFreePixmap(g_display, mi->pixmap);
             mi->pixmap = 0;
         }
@@ -614,7 +614,7 @@ xrdp_accel_assist_x11_create_pixmap(int width, int height, int magic,
     GLuint bmp_texture;
     GLuint enc_texture;
 
-    mi = g_mons + mon_id % MAX_MON;
+    mi = s_mons + mon_id % MAX_MON;
     if (mi->pixmap != 0)
     {
         LOG(LOG_LEVEL_ERROR, "xrdp_accel_assist_x11_create_pixmap: "
@@ -627,7 +627,7 @@ xrdp_accel_assist_x11_create_pixmap(int width, int height, int magic,
     pixmap = XCreatePixmap(g_display, g_root_window, width, height, 24);
     LOG(LOG_LEVEL_INFO, "pixmap %d", (int) pixmap);
 
-    if (g_inf_funcs[g_inf].create_image(pixmap, &inf_image) != 0)
+    if (s_inf_funcs[s_inf].create_image(pixmap, &inf_image) != 0)
     {
         return 1;
     }
@@ -637,9 +637,9 @@ xrdp_accel_assist_x11_create_pixmap(int width, int height, int magic,
     img[0] = magic;
     img[1] = con_id;
     img[2] = mon_id;
-    ximage = XCreateImage(g_display, g_vis, 24, ZPixmap, 0, (char *) img,
+    ximage = XCreateImage(g_display, s_vis, 24, ZPixmap, 0, (char *) img,
                           4, 4, 32, 0);
-    XPutImage(g_display, pixmap, g_gc, ximage, 0, 0, 0, 0, 4, 4);
+    XPutImage(g_display, pixmap, s_gc, ximage, 0, 0, 0, 0, 4, 4);
     XFree(ximage);
 
     glEnable(GL_TEXTURE_2D);
@@ -648,7 +648,7 @@ xrdp_accel_assist_x11_create_pixmap(int width, int height, int magic,
     glBindTexture(GL_TEXTURE_2D, enc_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    if (g_enc == ENC_NVENC)
+    if (s_enc == ENC_NVENC)
     {
         LOG(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_create_pixmap: "
             "using XH_YUV420");
@@ -661,7 +661,7 @@ xrdp_accel_assist_x11_create_pixmap(int width, int height, int magic,
         mi->viewport.w = width;
         mi->viewport.h = height * 3 / 2;
     }
-    else if (g_enc == ENC_VA)
+    else if (s_enc == ENC_VA)
     {
         LOG(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_create_pixmap: "
             "using XH_YUV422");
@@ -694,7 +694,7 @@ xrdp_accel_assist_x11_create_pixmap(int width, int height, int magic,
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    if (g_enc_funcs[g_enc].create_enc(width, height,
+    if (s_enc_funcs[s_enc].create_enc(width, height,
                                       enc_texture, mi->tex_format,
                                       &(mi->ei)) != 0)
     {
@@ -713,7 +713,7 @@ xrdp_accel_assist_x11_create_pixmap(int width, int height, int magic,
 
 #if XR_DUMP_FRAMEBUFFER
 
-static int g_framebuffer_file_index = 0;
+static int s_framebuffer_file_index = 0;
 
 /*****************************************************************************/
 static int
@@ -728,7 +728,7 @@ save_fb_to_file(int width, int height)
         glReadPixels(0, 0, width / 2, height, GL_BGRA,
                      GL_UNSIGNED_INT_8_8_8_8_REV, pixels);
         snprintf(filename, 255, "/tmp/gl_surface%8.8x.bmp",
-                 g_framebuffer_file_index++);
+                 s_framebuffer_file_index++);
         g_save_to_bmp(filename, pixels, width * 2, width / 2, height, 24, 32);
         g_free(pixels);
     }
@@ -754,8 +754,8 @@ xrdp_accel_assist_x11_run_shader(int left, int top, int width, int height,
     glEnable(GL_TEXTURE_2D);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mi->bmp_texture);
-    g_inf_funcs[g_inf].bind_tex_image(mi->inf_image);
-    glBindFramebuffer(GL_FRAMEBUFFER, g_fb);
+    s_inf_funcs[s_inf].bind_tex_image(mi->inf_image);
+    glBindFramebuffer(GL_FRAMEBUFFER, s_fb);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                            GL_TEXTURE_2D, mi->enc_texture, 0);
     glUseProgram(si->program);
@@ -792,14 +792,14 @@ xrdp_accel_assist_x11_run_shader(int left, int top, int width, int height,
     save_fb_to_file(width, height);
 #endif
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    g_inf_funcs[g_inf].release_tex_image(mi->inf_image);
+    s_inf_funcs[s_inf].release_tex_image(mi->inf_image);
     glBindTexture(GL_TEXTURE_2D, 0);
     glUseProgram(0);
 }
 
 #if XR_DUMP_PIXMAP
 
-static int g_pixmap_file_index = 0;
+static int s_pixmap_file_index = 0;
 
 /*****************************************************************************/
 static int
@@ -811,7 +811,7 @@ save_pixmap_to_file(Pixmap pix, int width, int height)
     image = XGetImage(g_display, pix, 0, 0, width, height, AllPlanes, ZPixmap);
     if (image != NULL)
     {
-        snprintf(filename, 255, "/tmp/pixmap%8.8x.bmp", g_pixmap_file_index++);
+        snprintf(filename, 255, "/tmp/pixmap%8.8x.bmp", s_pixmap_file_index++);
         g_save_to_bmp(filename, image->data, width * 4, width, height, 24, 32);
         XFree(image);
     }
@@ -831,7 +831,7 @@ xrdp_accel_assist_x11_encode_pixmap(int left, int top, int width, int height,
     struct shader_info *si;
     enum encoder_result rv;
 
-    mi = g_mons + mon_id % MAX_MON;
+    mi = s_mons + mon_id % MAX_MON;
     LOG_DEVEL(LOG_LEVEL_INFO, "xrdp_accel_assist_x11_encode_pixmap: "
               "left %d top %d width %d height %d mon_id %d",
               left, top, width, height, mon_id);
@@ -846,13 +846,13 @@ xrdp_accel_assist_x11_encode_pixmap(int left, int top, int width, int height,
 #if XR_DUMP_PIXMAP
     save_pixmap_to_file(mi->pixmap, width, height);
 #endif
-    si = g_si + mi->tex_format % XH_NUM_SHADERS;
+    si = s_si + mi->tex_format % XH_NUM_SHADERS;
     xrdp_accel_assist_x11_run_shader(left, top, width, height, mi, si,
                                      num_crects, crects);
     /* flush before encoding, let encoders call glFinish() as needed */
     XFlush(g_display);
     /* encode */
-    rv = g_enc_funcs[g_enc].encode(mi->ei, mi->enc_texture,
+    rv = s_enc_funcs[s_enc].encode(mi->ei, mi->enc_texture,
                                    cdata, cdata_bytes, flags);
     return rv;
 }

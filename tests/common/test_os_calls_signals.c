@@ -9,31 +9,31 @@
 
 #include "test_common.h"
 
-static tintptr g_wobj1 = 0;
+static tintptr s_wobj1 = 0;
 
 /******************************************************************************/
 void
 os_calls_signals_init(void)
 {
-    g_wobj1 = g_create_wait_obj("");
+    s_wobj1 = g_create_wait_obj("");
 }
 
 /******************************************************************************/
 void
 os_calls_signals_deinit(void)
 {
-    g_delete_wait_obj(g_wobj1);
-    g_wobj1 = 0;
+    g_delete_wait_obj(s_wobj1);
+    s_wobj1 = 0;
 }
 
 /******************************************************************************/
 /**
- * Set the global wait object g_wobj1
+ * Set the global wait object s_wobj1
  */
 static void
 set_wobj1(int signum)
 {
-    g_set_wait_obj(g_wobj1);
+    g_set_wait_obj(s_wobj1);
 }
 
 /******************************************************************************/
@@ -44,32 +44,32 @@ set_wobj1(int signum)
  * @param count Number of signals to send
  *
  * The caller is expected to establish a signal handler before this call
- * which sets the global g_wobj1 on signal delivery */
+ * which sets the global s_wobj1 on signal delivery */
 
 static
 void send_multiple_signals(int sig, unsigned int count)
 {
     while (count-- > 0)
     {
-        g_reset_wait_obj(g_wobj1);
-        ck_assert_int_eq(g_is_wait_obj_set(g_wobj1), 0);
+        g_reset_wait_obj(s_wobj1);
+        ck_assert_int_eq(g_is_wait_obj_set(s_wobj1), 0);
         // Expect the signal to be delivered synchronously
         raise(sig);
-        ck_assert_int_ne(g_is_wait_obj_set(g_wobj1), 0);
+        ck_assert_int_ne(g_is_wait_obj_set(s_wobj1), 0);
     }
 }
 
 /******************************************************************************/
 START_TEST(test_g_set_alarm)
 {
-    g_reset_wait_obj(g_wobj1);
-    ck_assert_int_eq(g_is_wait_obj_set(g_wobj1), 0);
+    g_reset_wait_obj(s_wobj1);
+    ck_assert_int_eq(g_is_wait_obj_set(s_wobj1), 0);
 
     g_set_alarm(set_wobj1, 1);
 
-    g_obj_wait(&g_wobj1, 1, NULL, 0, 2000);
+    g_obj_wait(&s_wobj1, 1, NULL, 0, 2000);
 
-    ck_assert_int_ne(g_is_wait_obj_set(g_wobj1), 0);
+    ck_assert_int_ne(g_is_wait_obj_set(s_wobj1), 0);
 
     // Clean up
     g_set_alarm(NULL, 0);
@@ -81,8 +81,8 @@ START_TEST(test_g_signal_child_stop_1)
 {
     struct proc_exit_status e;
 
-    g_reset_wait_obj(g_wobj1);
-    ck_assert_int_eq(g_is_wait_obj_set(g_wobj1), 0);
+    g_reset_wait_obj(s_wobj1);
+    ck_assert_int_eq(g_is_wait_obj_set(s_wobj1), 0);
 
     g_signal_child_stop(set_wobj1);
 
@@ -93,8 +93,8 @@ START_TEST(test_g_signal_child_stop_1)
         g_exit(45);
     }
     ck_assert_int_ne(pid, 0);
-    g_obj_wait(&g_wobj1, 1, NULL, 0, 2000);
-    ck_assert_int_ne(g_is_wait_obj_set(g_wobj1), 0);
+    g_obj_wait(&s_wobj1, 1, NULL, 0, 2000);
+    ck_assert_int_ne(g_is_wait_obj_set(s_wobj1), 0);
 
     e = g_waitpid_status(pid);
 
@@ -103,7 +103,7 @@ START_TEST(test_g_signal_child_stop_1)
 
     // Try another one to make sure the signal handler is still in place.
     // This one can generate a signal
-    g_reset_wait_obj(g_wobj1);
+    g_reset_wait_obj(s_wobj1);
 
     pid = g_fork();
     if (pid == 0)
@@ -114,8 +114,8 @@ START_TEST(test_g_signal_child_stop_1)
         raise(SIGUSR2);
     }
     ck_assert_int_ne(pid, 0);
-    g_obj_wait(&g_wobj1, 1, NULL, 0, 2000);
-    ck_assert_int_ne(g_is_wait_obj_set(g_wobj1), 0);
+    g_obj_wait(&s_wobj1, 1, NULL, 0, 2000);
+    ck_assert_int_ne(g_is_wait_obj_set(s_wobj1), 0);
 
     e = g_waitpid_status(pid);
 
@@ -138,8 +138,8 @@ START_TEST(test_g_signal_child_stop_2)
 
     struct proc_exit_status e;
 
-    g_reset_wait_obj(g_wobj1);
-    ck_assert_int_eq(g_is_wait_obj_set(g_wobj1), 0);
+    g_reset_wait_obj(s_wobj1);
+    ck_assert_int_eq(g_is_wait_obj_set(s_wobj1), 0);
 
     g_signal_child_stop(set_wobj1);
 
@@ -154,8 +154,8 @@ START_TEST(test_g_signal_child_stop_2)
         ck_assert_int_ne(pid, 0);
         pids[i] = pid;
     }
-    g_obj_wait(&g_wobj1, 1, NULL, 0, 2000);
-    ck_assert_int_ne(g_is_wait_obj_set(g_wobj1), 0);
+    g_obj_wait(&s_wobj1, 1, NULL, 0, 2000);
+    ck_assert_int_ne(g_is_wait_obj_set(s_wobj1), 0);
 
     for (i = 0 ; i < CHILD_COUNT; ++i)
     {
@@ -246,12 +246,12 @@ START_TEST(test_waitpid_not_interrupted_by_sig)
     }
 
     /* Set an alarm for 1 second's time */
-    g_reset_wait_obj(g_wobj1);
+    g_reset_wait_obj(s_wobj1);
     g_set_alarm(set_wobj1, 1);
 
     struct proc_exit_status e = g_waitpid_status(child_pid);
     // We should have had the alarm...
-    ck_assert_int_ne(g_is_wait_obj_set(g_wobj1), 0);
+    ck_assert_int_ne(g_is_wait_obj_set(s_wobj1), 0);
 
     // ..and got the status of the child
     ck_assert_int_eq(e.reason, E_PXR_STATUS_CODE);

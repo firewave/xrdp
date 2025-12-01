@@ -41,10 +41,10 @@
 
 #define CRC_INIT 0xFFFF
 #define CRC(_crcval, _newchar) _crcval = \
-    ((_crcval) >> 8) ^ g_crc_table[((_crcval) ^ (_newchar)) & 0x00ff]
+    ((_crcval) >> 8) ^ s_crc_table[((_crcval) ^ (_newchar)) & 0x00ff]
 
 /* CRC16 defs */
-static const tui16 g_crc_table[256] =
+static const tui16 s_crc_table[256] =
 {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
     0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,

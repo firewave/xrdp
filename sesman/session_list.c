@@ -46,7 +46,7 @@
 #include "string_calls.h"
 #include "xrdp_sockets.h"
 
-static struct list *g_session_list = NULL;
+static struct list *s_session_list = NULL;
 
 #define SESSION_IN_USE(si) \
     ((si) != NULL && \
@@ -58,17 +58,17 @@ int
 session_list_init(void)
 {
     int rv = 0;
-    if (g_session_list == NULL)
+    if (s_session_list == NULL)
     {
-        g_session_list = list_create_sized(g_cfg->sess.max_sessions);
-        if (g_session_list == NULL)
+        s_session_list = list_create_sized(g_cfg->sess.max_sessions);
+        if (s_session_list == NULL)
         {
             LOG(LOG_LEVEL_ERROR, "Can't allocate session list");
             rv = 1;
         }
         else
         {
-            g_session_list->auto_free = 0;
+            s_session_list->auto_free = 0;
         }
     }
 
@@ -81,7 +81,7 @@ session_list_init(void)
  *
  * @param si Session item
  *
- * @note Any pointer to this item on g_session_list will be invalid
+ * @note Any pointer to this item on s_session_list will be invalid
  *       after this call.
  */
 static void
@@ -101,17 +101,17 @@ free_session(struct session_item *si)
 void
 session_list_cleanup(void)
 {
-    if (g_session_list != NULL)
+    if (s_session_list != NULL)
     {
         int i;
-        for (i = 0 ; i < g_session_list->count ; ++i)
+        for (i = 0 ; i < s_session_list->count ; ++i)
         {
             struct session_item *si;
-            si = (struct session_item *)list_get_item(g_session_list, i);
+            si = (struct session_item *)list_get_item(s_session_list, i);
             free_session(si);
         }
-        list_delete(g_session_list);
-        g_session_list = NULL;
+        list_delete(s_session_list);
+        s_session_list = NULL;
     }
 }
 
@@ -119,7 +119,7 @@ session_list_cleanup(void)
 unsigned int
 session_list_get_count(void)
 {
-    return (g_session_list == NULL) ? 0 : g_session_list->count;
+    return (s_session_list == NULL) ? 0 : s_session_list->count;
 }
 
 /******************************************************************************/
@@ -128,10 +128,10 @@ session_list_get_count_by_state(enum session_state state)
 {
     unsigned int result = 0;
     int i;
-    for (i = 0 ; i < g_session_list->count ; ++i)
+    for (i = 0 ; i < s_session_list->count ; ++i)
     {
         struct session_item *si;
-        si = (struct session_item *)list_get_item(g_session_list, i);
+        si = (struct session_item *)list_get_item(s_session_list, i);
         if (si->state == state)
         {
             ++result;
@@ -148,7 +148,7 @@ session_list_new(void)
     if (result != NULL)
     {
         result->state = E_SESSION_STARTING;
-        if (!list_add_item(g_session_list, (tintptr)result))
+        if (!list_add_item(s_session_list, (tintptr)result))
         {
             g_free(result);
             result = NULL;
@@ -162,13 +162,13 @@ session_list_new(void)
 void
 session_list_get_session_displays(struct set_int *alloc_displays)
 {
-    int count = (g_session_list == NULL) ? 0 : g_session_list->count;
+    int count = (s_session_list == NULL) ? 0 : s_session_list->count;
 
     int i = 0;
     for (i = 0 ; i < count ; ++i)
     {
         struct session_item *si;
-        si = (struct session_item *)list_get_item(g_session_list, i);
+        si = (struct session_item *)list_get_item(s_session_list, i);
 
         if (SESSION_IN_USE(si))
         {
@@ -219,10 +219,10 @@ session_list_get_bydata(uid_t uid,
         return NULL;
     }
 
-    for (i = 0 ; i < g_session_list->count ; ++i)
+    for (i = 0 ; i < s_session_list->count ; ++i)
     {
         struct session_item *si;
-        si = (struct session_item *)list_get_item(g_session_list, i);
+        si = (struct session_item *)list_get_item(s_session_list, i);
         if (!SESSION_IN_USE(si))
         {
             continue;
@@ -303,10 +303,10 @@ session_list_get_byuid(const uid_t *uid, unsigned int *cnt, unsigned int flags)
         LOG(LOG_LEVEL_DEBUG, "searching for all sessions");
     }
 
-    for (i = 0 ; i < g_session_list->count ; ++i)
+    for (i = 0 ; i < s_session_list->count ; ++i)
     {
         const struct session_item *si;
-        si = (const struct session_item *)list_get_item(g_session_list, i);
+        si = (const struct session_item *)list_get_item(s_session_list, i);
         if (SESSION_IN_USE(si) && (uid == NULL || *uid == si->uid))
         {
             count++;
@@ -329,10 +329,10 @@ session_list_get_byuid(const uid_t *uid, unsigned int *cnt, unsigned int flags)
     }
 
     index = 0;
-    for (i = 0 ; i < g_session_list->count ; ++i)
+    for (i = 0 ; i < s_session_list->count ; ++i)
     {
         const struct session_item *si;
-        si = (const struct session_item *)list_get_item(g_session_list, i);
+        si = (const struct session_item *)list_get_item(s_session_list, i);
 
         if (SESSION_IN_USE(si) && (uid == NULL || *uid == si->uid))
         {
@@ -372,10 +372,10 @@ session_list_get_byguid(const struct guid *guid)
 {
     int i;
 
-    for (i = 0 ; i < g_session_list->count ; ++i)
+    for (i = 0 ; i < s_session_list->count ; ++i)
     {
         struct session_item *si;
-        si = (struct session_item *)list_get_item(g_session_list, i);
+        si = (struct session_item *)list_get_item(s_session_list, i);
         if (SESSION_IN_USE(si) && GUID_ARE_EQUAL(guid, &si->guid))
         {
             return si;
@@ -409,10 +409,10 @@ session_list_get_wait_objs(tbus robjs[], int *robjs_count)
 {
     int i;
 
-    for (i = 0 ; i < g_session_list->count; ++i)
+    for (i = 0 ; i < s_session_list->count; ++i)
     {
         const struct session_item *si;
-        si = (const struct session_item *)list_get_item(g_session_list, i);
+        si = (const struct session_item *)list_get_item(s_session_list, i);
         if (SESSION_IN_USE(si))
         {
             robjs[(*robjs_count)++] = si->sesexec_trans->sck;
@@ -428,10 +428,10 @@ session_list_check_wait_objs(void)
 {
     int i = 0;
 
-    while (i < g_session_list->count)
+    while (i < s_session_list->count)
     {
         struct session_item *si;
-        si = (struct session_item *)list_get_item(g_session_list, i);
+        si = (struct session_item *)list_get_item(s_session_list, i);
         if (SESSION_IN_USE(si))
         {
             if (trans_check_wait_objs(si->sesexec_trans) != 0)
@@ -449,7 +449,7 @@ session_list_check_wait_objs(void)
         else
         {
             free_session(si);
-            list_remove_item(g_session_list, i);
+            list_remove_item(s_session_list, i);
         }
     }
 

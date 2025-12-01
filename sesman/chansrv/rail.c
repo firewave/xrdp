@@ -44,24 +44,24 @@
 #include "thread_calls.h"
 #include "list.h"
 
-static Atom g_rwd_atom = 0;
+static Atom s_rwd_atom = 0;
 
 int g_rail_up = 0;
 
 /* for rail_is_another_wm_running */
-static int g_rail_running = 1;
+static int s_rail_running = 1;
 /* list of valid rail windows */
-static struct list *g_window_list = 0;
+static struct list *s_window_list = 0;
 
-static int g_got_focus = 0;
-static int g_focus_counter = 0;
-static Window g_focus_win = 0;
+static int s_got_focus = 0;
+static int s_focus_counter = 0;
+static Window s_focus_win = 0;
 
-static int g_xrr_event_base = 0; /* non zero means we got extension */
+static int s_xrr_event_base = 0; /* non zero means we got extension */
 
-static Cursor g_default_cursor = 0;
+static Cursor s_default_cursor = 0;
 
-static char *g_override_window_title = 0;
+static char *s_override_window_title = 0;
 
 /* used in valid field of struct rail_window_data */
 #define RWD_X       (1 << 0)
@@ -189,7 +189,7 @@ rail_get_window_data(Window window)
     nitems_return = 0;
     prop_return = 0;
     bytes = sizeof(struct rail_window_data);
-    XGetWindowProperty(g_display, window, g_rwd_atom, 0, bytes, 0,
+    XGetWindowProperty(g_display, window, s_rwd_atom, 0, bytes, 0,
                        XA_STRING, &actual_type_return,
                        &actual_format_return, &nitems_return,
                        &bytes_after_return, &prop_return);
@@ -211,7 +211,7 @@ rail_set_window_data(Window window, struct rail_window_data *rwd)
     int bytes;
 
     bytes = sizeof(struct rail_window_data);
-    XChangeProperty(g_display, window, g_rwd_atom, XA_STRING, 8,
+    XChangeProperty(g_display, window, s_rwd_atom, XA_STRING, 8,
                     PropModeReplace, (unsigned char *)rwd, bytes);
     return 0;
 }
@@ -290,7 +290,7 @@ rail_send_init(void)
 static int
 anotherWMRunning(Display *display, XErrorEvent *xe)
 {
-    g_rail_running = 0;
+    s_rail_running = 0;
     return -1;
 }
 
@@ -300,7 +300,7 @@ rail_is_another_wm_running(void)
 {
     XErrorHandler old;
 
-    g_rail_running = 1;
+    s_rail_running = 1;
     old = XSetErrorHandler((XErrorHandler)anotherWMRunning);
     XSelectInput(g_display, g_root_window,
                  PropertyChangeMask | StructureNotifyMask |
@@ -309,7 +309,7 @@ rail_is_another_wm_running(void)
                  EnterWindowMask | LeaveWindowMask);
     XSync(g_display, 0);
     XSetErrorHandler((XErrorHandler)old);
-    g_rail_up = g_rail_running;
+    g_rail_up = s_rail_running;
 
     if (!g_rail_up)
     {
@@ -335,8 +335,8 @@ rail_deinit(void)
 {
     if (g_rail_up)
     {
-        list_delete(g_window_list);
-        g_window_list = 0;
+        list_delete(s_window_list);
+        s_window_list = 0;
         /* no longer window manager */
         XSelectInput(g_display, g_root_window, 0);
         g_rail_up = 0;
@@ -359,19 +359,19 @@ rail_startup(void)
             "is running");
     }
 
-    list_delete(g_window_list);
-    g_window_list = list_create();
+    list_delete(s_window_list);
+    s_window_list = list_create();
     rail_send_init();
     g_rail_up = 1;
-    g_rwd_atom = XInternAtom(g_display, "XRDP_RAIL_WINDOW_DATA", 0);
+    s_rwd_atom = XInternAtom(g_display, "XRDP_RAIL_WINDOW_DATA", 0);
 
-    if (!XRRQueryExtension(g_display, &g_xrr_event_base, &dummy))
+    if (!XRRQueryExtension(g_display, &s_xrr_event_base, &dummy))
     {
-        g_xrr_event_base = 0;
+        s_xrr_event_base = 0;
         LOG(LOG_LEVEL_ERROR, "rail_init: RandR extension not found");
     }
 
-    if (g_xrr_event_base > 0)
+    if (s_xrr_event_base > 0)
     {
         LOG_DEVEL(LOG_LEVEL_INFO, "rail_init: found RandR extension");
         st = XRRQueryVersion(g_display, &ver_maj, &ver_min);
@@ -382,10 +382,10 @@ rail_startup(void)
         XRRSelectInput(g_display, g_root_window, RRScreenChangeNotifyMask);
     }
 
-    if (g_default_cursor == 0)
+    if (s_default_cursor == 0)
     {
-        g_default_cursor = XCreateFontCursor(g_display, XC_left_ptr);
-        XDefineCursor(g_display, g_root_window, g_default_cursor);
+        s_default_cursor = XCreateFontCursor(g_display, XC_left_ptr);
+        XDefineCursor(g_display, g_root_window, s_default_cursor);
     }
 
     return 0;
@@ -514,7 +514,7 @@ rail_win_popdown(void)
         XGetWindowAttributes(g_display, children[i], &window_attributes);
         if (window_attributes.override_redirect &&
                 window_attributes.map_state == IsViewable &&
-                list_index_of(g_window_list, children[i]) >= 0)
+                list_index_of(s_window_list, children[i]) >= 0)
         {
             LOG_DEVEL(LOG_LEVEL_DEBUG, "  dismiss pop up 0x%8.8lx", children[i]);
             rail_send_key_esc(children[i]);
@@ -553,10 +553,10 @@ rail_close_window(int window_id)
 static void
 my_timeout(void *data)
 {
-    LOG_DEVEL(LOG_LEVEL_DEBUG, "my_timeout: g_got_focus %d", g_got_focus);
-    if (g_focus_counter == (int)(long)data)
+    LOG_DEVEL(LOG_LEVEL_DEBUG, "my_timeout: s_got_focus %d", s_got_focus);
+    if (s_focus_counter == (int)(long)data)
     {
-        LOG_DEVEL(LOG_LEVEL_DEBUG, "my_timeout: g_focus_counter %d", g_focus_counter);
+        LOG_DEVEL(LOG_LEVEL_DEBUG, "my_timeout: s_focus_counter %d", s_focus_counter);
         rail_win_popdown();
     }
 }
@@ -575,7 +575,7 @@ rail_process_activate(struct stream *s, int size)
     in_uint32_le(s, window_id);
     in_uint8(s, enabled);
 
-    index = list_index_of(g_window_list, window_id);
+    index = list_index_of(s_window_list, window_id);
     if (index < 0)
     {
         LOG_DEVEL(LOG_LEVEL_DEBUG, "chansrv::rail_process_activate: window 0x%8.8x not in list",
@@ -583,15 +583,15 @@ rail_process_activate(struct stream *s, int size)
         return 0;
     }
 
-    g_focus_counter++;
-    g_got_focus = enabled;
+    s_focus_counter++;
+    s_got_focus = enabled;
     LOG_DEVEL(LOG_LEVEL_DEBUG, "  window_id 0x%8.8x enabled %d", window_id, enabled);
 
     XGetWindowAttributes(g_display, window_id, &window_attributes);
 
     if (enabled)
     {
-        if (g_focus_win == window_id)
+        if (s_focus_win == window_id)
         {
             /* In case that window is unmapped upon minimization and not yet mapped*/
             XMapWindow(g_display, window_id);
@@ -624,7 +624,7 @@ rail_process_activate(struct stream *s, int size)
     {
         LOG_DEVEL(LOG_LEVEL_DEBUG, "  window attributes: override_redirect %d",
                   window_attributes.override_redirect);
-        add_timeout(200, my_timeout, (void *)(long)g_focus_counter);
+        add_timeout(200, my_timeout, (void *)(long)s_focus_counter);
     }
     return 0;
 }
@@ -792,9 +792,9 @@ rail_win_get_text(Window win, char **data)
     unsigned char *ldata = 0;
     char *lldata = 0;
 
-    if (g_override_window_title != 0)
+    if (s_override_window_title != 0)
     {
-        *data = g_strdup(g_override_window_title);
+        *data = g_strdup(s_override_window_title);
         return g_strlen(*data);
     }
     ret = rail_get_property(g_display, win, g_utf8_string, g_net_wm_name,
@@ -874,7 +874,7 @@ rail_process_system_command(struct stream *s, int size)
     in_uint32_le(s, window_id);
     in_uint16_le(s, command);
 
-    index = list_index_of(g_window_list, window_id);
+    index = list_index_of(s_window_list, window_id);
     if (index < 0)
     {
         LOG_DEVEL(LOG_LEVEL_DEBUG, "chansrv::rail_process_system_command: window 0x%8.8x not in list",
@@ -1157,8 +1157,8 @@ rail_data_in(struct stream *s, int chan_id, int chan_flags, int length,
     return  0;
 }
 
-static const unsigned int g_crc_seed = 0xffffffff;
-static const unsigned int g_crc_table[256] =
+static const unsigned int s_crc_seed = 0xffffffff;
+static const unsigned int s_crc_table[256] =
 {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
     0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -1205,10 +1205,10 @@ static const unsigned int g_crc_table[256] =
     0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-#define CRC_START(in_crc) (in_crc) = g_crc_seed
+#define CRC_START(in_crc) (in_crc) = s_crc_seed
 #define CRC_PASS(in_pixel, in_crc) \
-    (in_crc) = g_crc_table[((in_crc) ^ (in_pixel)) & 0xff] ^ ((in_crc) >> 8)
-#define CRC_END(in_crc) (in_crc) = ((in_crc) ^ g_crc_seed)
+    (in_crc) = s_crc_table[((in_crc) ^ (in_pixel)) & 0xff] ^ ((in_crc) >> 8)
+#define CRC_END(in_crc) (in_crc) = ((in_crc) ^ s_crc_seed)
 
 /*****************************************************************************/
 static int
@@ -1375,12 +1375,12 @@ rail_create_window(Window window_id, Window owner_id)
     LOG_DEVEL(LOG_LEVEL_DEBUG, "  x %d y %d width %d height %d border_width %d", x, y, width,
               height, border);
 
-    index = list_index_of(g_window_list, window_id);
+    index = list_index_of(s_window_list, window_id);
     if (index == -1)
     {
         LOG_DEVEL(LOG_LEVEL_DEBUG, "  create new window");
         flags = WINDOW_ORDER_TYPE_WINDOW | WINDOW_ORDER_STATE_NEW;
-        list_add_item(g_window_list, window_id);
+        list_add_item(s_window_list, window_id);
     }
     else
     {
@@ -1635,7 +1635,7 @@ rail_configure_request_window(XConfigureRequestEvent *config)
     LOG_DEVEL(LOG_LEVEL_DEBUG, "  x %d y %d width %d height %d border_width %d", config->x,
               config->y, config->width, config->height, config->border_width);
 
-    index = list_index_of(g_window_list, window_id);
+    index = list_index_of(s_window_list, window_id);
     if (index == -1)
     {
         /* window isn't mapped yet */
@@ -1721,7 +1721,7 @@ rail_configure_window(XConfigureEvent *config)
     LOG_DEVEL(LOG_LEVEL_DEBUG, "  x %d y %d width %d height %d border_width %d", config->x,
               config->y, config->width, config->height, config->border_width);
 
-    index = list_index_of(g_window_list, window_id);
+    index = list_index_of(s_window_list, window_id);
     if (index == -1)
     {
         /* window isn't mapped yet */
@@ -1823,7 +1823,7 @@ rail_xevent(void *xevent)
                       lxevent->xproperty.window, prop_name,
                       lxevent->xproperty.state == PropertyNewValue);
 
-            if (list_index_of(g_window_list, lxevent->xproperty.window) < 0)
+            if (list_index_of(s_window_list, lxevent->xproperty.window) < 0)
             {
                 break;
             }
@@ -1872,11 +1872,11 @@ rail_xevent(void *xevent)
             {
                 break;
             }
-            index = list_index_of(g_window_list, lxevent->xdestroywindow.window);
+            index = list_index_of(s_window_list, lxevent->xdestroywindow.window);
             if (index >= 0)
             {
                 rail_destroy_window(lxevent->xdestroywindow.window);
-                list_remove_item(g_window_list, index);
+                list_remove_item(s_window_list, index);
             }
             rv = 0;
             break;
@@ -1920,7 +1920,7 @@ rail_xevent(void *xevent)
             }
             if (is_window_valid_child_of_root(lxevent->xunmap.window))
             {
-                index = list_index_of(g_window_list, lxevent->xunmap.window);
+                index = list_index_of(s_window_list, lxevent->xunmap.window);
                 LOG_DEVEL(LOG_LEVEL_DEBUG, "  window 0x%8.8lx is unmapped", lxevent->xunmap.window);
                 if (index >= 0)
                 {
@@ -1929,7 +1929,7 @@ rail_xevent(void *xevent)
                     {
                         // remove popups
                         rail_destroy_window(lxevent->xunmap.window);
-                        list_remove_item(g_window_list, index);
+                        list_remove_item(s_window_list, index);
                     }
                     else
                     {
@@ -1968,7 +1968,7 @@ rail_xevent(void *xevent)
 
         case FocusIn:
             LOG_DEVEL(LOG_LEVEL_DEBUG, "  got FocusIn");
-            g_focus_win = lxevent->xfocus.window;
+            s_focus_win = lxevent->xfocus.window;
             break;
 
         case FocusOut:
@@ -2000,20 +2000,20 @@ rail_xevent(void *xevent)
             }
             if (lxevent->xreparent.parent != g_root_window)
             {
-                index = list_index_of(g_window_list, lxevent->xreparent.window);
+                index = list_index_of(s_window_list, lxevent->xreparent.window);
                 if (index >= 0)
                 {
                     rail_destroy_window(lxevent->xreparent.window);
-                    list_remove_item(g_window_list, index);
+                    list_remove_item(s_window_list, index);
                 }
             }
             rv = 0;
             break;
 
         default:
-            if (g_xrr_event_base > 0)
+            if (s_xrr_event_base > 0)
             {
-                if (lxevent->type == g_xrr_event_base + RRScreenChangeNotify)
+                if (lxevent->type == s_xrr_event_base + RRScreenChangeNotify)
                 {
                     rail_desktop_resize(lxevent);
                     rv = 0;

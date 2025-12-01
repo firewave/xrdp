@@ -39,15 +39,15 @@
 
 EGLDisplay g_egl_display;
 EGLContext g_egl_context;
-static EGLSurface g_egl_surface;
-static EGLConfig g_ecfg;
-static EGLint g_num_config;
+static EGLSurface s_egl_surface;
+static EGLConfig s_ecfg;
+static EGLint s_num_config;
 
 /* X11 */
 extern Display *g_display; /* in xrdp_accel_assist_x11.c */
 extern Window g_root_window; /* in xrdp_accel_assist_x11.c */
 
-static EGLint g_choose_config_attr[] =
+static EGLint s_choose_config_attr[] =
 {
     EGL_RED_SIZE, 8,
     EGL_GREEN_SIZE, 8,
@@ -55,14 +55,14 @@ static EGLint g_choose_config_attr[] =
     EGL_NONE
 };
 
-static EGLint g_create_context_attr[] =
+static EGLint s_create_context_attr[] =
 {
     EGL_CONTEXT_MAJOR_VERSION, 3,
     EGL_CONTEXT_MINOR_VERSION, 3,
     EGL_NONE
 };
 
-static const EGLint g_create_surface_attr[] =
+static const EGLint s_create_surface_attr[] =
 {
     EGL_TEXTURE_TARGET, EGL_TEXTURE_2D,
     EGL_TEXTURE_FORMAT, EGL_TEXTURE_RGBA,
@@ -110,16 +110,16 @@ xrdp_accel_assist_inf_egl_init(void)
         eglTerminate(g_egl_display);
         return 1;
     }
-    eglChooseConfig(g_egl_display, g_choose_config_attr, &g_ecfg,
-                    1, &g_num_config);
-    LOG(LOG_LEVEL_INFO, "g_ecfg %p g_num_config %d", g_ecfg, g_num_config);
-    g_egl_surface = eglCreateWindowSurface(g_egl_display, g_ecfg,
+    eglChooseConfig(g_egl_display, s_choose_config_attr, &s_ecfg,
+                    1, &s_num_config);
+    LOG(LOG_LEVEL_INFO, "s_ecfg %p s_num_config %d", s_ecfg, s_num_config);
+    s_egl_surface = eglCreateWindowSurface(g_egl_display, s_ecfg,
                                            g_root_window, NULL);
-    LOG(LOG_LEVEL_INFO, "g_egl_surface %p", g_egl_surface);
-    g_egl_context = eglCreateContext(g_egl_display, g_ecfg,
-                                     EGL_NO_CONTEXT, g_create_context_attr);
+    LOG(LOG_LEVEL_INFO, "s_egl_surface %p", s_egl_surface);
+    g_egl_context = eglCreateContext(g_egl_display, s_ecfg,
+                                     EGL_NO_CONTEXT, s_create_context_attr);
     LOG(LOG_LEVEL_INFO, "g_egl_context %p", g_egl_context);
-    ok = eglMakeCurrent(g_egl_display, g_egl_surface, g_egl_surface,
+    ok = eglMakeCurrent(g_egl_display, s_egl_surface, s_egl_surface,
                         g_egl_context);
     LOG(LOG_LEVEL_INFO, "eglMakeCurrent ok %d", ok);
     return 0;
@@ -130,7 +130,7 @@ int
 xrdp_accel_assist_inf_egl_create_image(Pixmap pixmap, inf_image_t *inf_image)
 {
     *inf_image = (inf_image_t)eglCreatePixmapSurface(g_egl_display,
-                 g_ecfg, pixmap, g_create_surface_attr);
+                 s_ecfg, pixmap, s_create_surface_attr);
     return 0;
 }
 

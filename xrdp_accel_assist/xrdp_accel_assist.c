@@ -49,7 +49,7 @@ struct xorgxrdp_info
     int pad0;
 };
 
-static int g_display_num = 0;
+static int s_display_num = 0;
 
 /*****************************************************************************/
 static int
@@ -858,7 +858,7 @@ get_display_num_from_display(char *display_text)
     host[host_index] = 0;
     disp[disp_index] = 0;
     scre[scre_index] = 0;
-    g_display_num = g_atoi(disp);
+    s_display_num = g_atoi(disp);
     return 0;
 }
 
@@ -886,7 +886,7 @@ xrdp_accel_assist_setup_log(void)
         get_display_num_from_display(display_text);
     }
     g_snprintf(log_file, 255, "%s/xrdp-accel-assist.%d.log", log_path,
-               g_display_num);
+               s_display_num);
     g_writeln("xrdp-accel-assist::xrdp_accel_assist_setup_log: using "
               "log file [%s]", log_file);
     if (g_file_exist(log_file))

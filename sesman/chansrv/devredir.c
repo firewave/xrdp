@@ -111,14 +111,14 @@ struct client_caps
     unsigned int drive_redir_version;
 };
 
-static struct client_caps g_ccap;
+static struct client_caps s_ccap;
 
 tui32 g_completion_id = 1;
 
-static tui32 g_clientID;           /* unique client ID - announced by client */
-static tui32 g_device_id;          /* unique device ID - announced by client */
-static tui16 g_client_rdp_version; /* returned by client                     */
-static struct stream *g_input_stream = NULL;
+static tui32 s_clientID;           /* unique client ID - announced by client */
+static tui32 s_device_id;          /* unique device ID - announced by client */
+static tui16 s_client_rdp_version; /* returned by client                     */
+static struct stream *s_input_stream = NULL;
 
 /*
  * Local functions called from devredir_proc_device_iocompletion()
@@ -323,10 +323,10 @@ devredir_data_in(struct stream *s, int chan_id, int chan_flags, int length,
         /* is this is the first packet? */
         if (chan_flags & 1)
         {
-            xstream_new(g_input_stream, total_length);
+            xstream_new(s_input_stream, total_length);
         }
 
-        xstream_copyin(g_input_stream, s->p, length);
+        xstream_copyin(s_input_stream, s->p, length);
 
         /* in last packet, chan_flags & 0x02 will be true */
         if ((chan_flags & 2) == 0)
@@ -334,9 +334,9 @@ devredir_data_in(struct stream *s, int chan_id, int chan_flags, int length,
             return 0;
         }
 
-        s_mark_end(g_input_stream);
-        g_input_stream->p = g_input_stream->data;
-        ls = g_input_stream;
+        s_mark_end(s_input_stream);
+        s_input_stream->p = s_input_stream->data;
+        ls = s_input_stream;
     }
 
     /* read header from incoming data */
@@ -370,9 +370,9 @@ devredir_data_in(struct stream *s, int chan_id, int chan_flags, int length,
             {
                 xstream_seek(ls, 2);  /* major version, we ignore it */
                 xstream_rd_u16_le(ls, minor_ver);
-                xstream_rd_u32_le(ls, g_clientID);
+                xstream_rd_u32_le(ls, s_clientID);
 
-                g_client_rdp_version = minor_ver;
+                s_client_rdp_version = minor_ver;
 
                 switch (minor_ver)
                 {
@@ -395,7 +395,7 @@ devredir_data_in(struct stream *s, int chan_id, int chan_flags, int length,
             /* client is telling us its computer name; do we even care? */
 
             /* See 3.3.5.1.6 for sequencing rules */
-            if (g_client_rdp_version >= RDP_CLIENT_51)
+            if (s_client_rdp_version >= RDP_CLIENT_51)
             {
                 /* let client know our capabilities */
                 devredir_send_server_core_cap_req();
@@ -409,12 +409,12 @@ devredir_data_in(struct stream *s, int chan_id, int chan_flags, int length,
             rv = devredir_proc_client_core_cap_resp(ls);
             if (rv == 0)
             {
-                if ((g_ccap.extended_pdu & RDPDR_USER_LOGGEDON_PDU) != 0)
+                if ((s_ccap.extended_pdu & RDPDR_USER_LOGGEDON_PDU) != 0)
                 {
                     /* Tell client to announce remaining devices */
                     devredir_send_server_user_logged_on();
                 }
-                else if (g_client_rdp_version >= RDP_CLIENT_51)
+                else if (s_client_rdp_version >= RDP_CLIENT_51)
                 {
                     /* See 3.3.5.1.7 */
                     devredir_send_server_clientID_confirm();
@@ -441,10 +441,10 @@ devredir_data_in(struct stream *s, int chan_id, int chan_flags, int length,
 
 done:
 
-    if (g_input_stream)
+    if (s_input_stream)
     {
-        xstream_free(g_input_stream);
-        g_input_stream = NULL;
+        xstream_free(s_input_stream);
+        s_input_stream = NULL;
     }
 
     return rv;
@@ -454,7 +454,7 @@ done:
 int
 devredir_get_wait_objs(tbus *objs, int *count, int *timeout)
 {
-    if (g_ccap.smartcard_redir_supported)
+    if (s_ccap.smartcard_redir_supported)
     {
         return scard_get_wait_objs(objs, count, timeout);
     }
@@ -465,7 +465,7 @@ devredir_get_wait_objs(tbus *objs, int *count, int *timeout)
 int
 devredir_check_wait_objs(void)
 {
-    if (g_ccap.smartcard_redir_supported)
+    if (s_ccap.smartcard_redir_supported)
     {
         return scard_check_wait_objs();
     }
@@ -500,7 +500,7 @@ devredir_send_server_core_cap_req(void)
     xstream_wr_u32_le(s, 2);                /* O.S type                       */
     xstream_wr_u32_le(s, 0);                /* O.S version                    */
     xstream_wr_u16_le(s, 1);                /* protocol major version         */
-    xstream_wr_u16_le(s, g_client_rdp_version); /* protocol minor version     */
+    xstream_wr_u16_le(s, s_client_rdp_version); /* protocol minor version     */
     xstream_wr_u32_le(s, 0xffff);           /* I/O code 1                     */
     xstream_wr_u32_le(s, 0);                /* I/O code 2                     */
     xstream_wr_u32_le(s, 7);                /* Extended PDU                   */
@@ -549,8 +549,8 @@ devredir_send_server_clientID_confirm(void)
     xstream_wr_u16_le(s, RDPDR_CTYP_CORE);
     xstream_wr_u16_le(s, PAKID_CORE_CLIENTID_CONFIRM);
     xstream_wr_u16_le(s, 0x0001);
-    xstream_wr_u16_le(s, g_client_rdp_version);
-    xstream_wr_u32_le(s, g_clientID);
+    xstream_wr_u16_le(s, s_client_rdp_version);
+    xstream_wr_u32_le(s, s_clientID);
 
     /* send to client */
     bytes = xstream_len(s);
@@ -815,8 +815,8 @@ devredir_proc_client_core_cap_resp(struct stream *s)
     tui32 cap_version;
 
     // Reset to defaults
-    memset(&g_ccap, 0, sizeof(g_ccap));
-    g_ccap.drive_redir_version = 1;
+    memset(&s_ccap, 0, sizeof(s_ccap));
+    s_ccap.drive_redir_version = 1;
 
     if (!s_check_rem_and_log(s, 4, "Parsing [MS-RDPEFS] DR_CORE_CAPABLITY_RSP"))
     {
@@ -851,7 +851,7 @@ devredir_proc_client_core_cap_resp(struct stream *s)
         {
             case CAP_GENERAL_TYPE:
                 LOG_DEVEL(LOG_LEVEL_DEBUG, "got CAP_GENERAL_TYPE");
-                if (process_client_general_caps_set(s, cap_len, &g_ccap) < 0)
+                if (process_client_general_caps_set(s, cap_len, &s_ccap) < 0)
                 {
                     return -1;
                 }
@@ -859,26 +859,26 @@ devredir_proc_client_core_cap_resp(struct stream *s)
 
             case CAP_PRINTER_TYPE:
                 LOG_DEVEL(LOG_LEVEL_DEBUG, "got CAP_PRINTER_TYPE");
-                g_ccap.printer_redir_supported = 1;
+                s_ccap.printer_redir_supported = 1;
                 break;
 
             case CAP_PORT_TYPE:
                 LOG_DEVEL(LOG_LEVEL_DEBUG, "got CAP_PORT_TYPE");
-                g_ccap.port_redir_supported = 1;
+                s_ccap.port_redir_supported = 1;
                 break;
 
             case CAP_DRIVE_TYPE:
                 LOG_DEVEL(LOG_LEVEL_DEBUG, "got CAP_DRIVE_TYPE");
-                g_ccap.drive_redir_supported = 1;
+                s_ccap.drive_redir_supported = 1;
                 if (cap_version == 2)
                 {
-                    g_ccap.drive_redir_version = 2;
+                    s_ccap.drive_redir_version = 2;
                 }
                 break;
 
             case CAP_SMARTCARD_TYPE:
                 LOG_DEVEL(LOG_LEVEL_DEBUG, "got CAP_SMARTCARD_TYPE");
-                g_ccap.smartcard_redir_supported = (scard_init() == 0);
+                s_ccap.smartcard_redir_supported = (scard_init() == 0);
                 break;
         }
         s_pop_layer(s, iso_hdr); // Move back to start of capability data
@@ -917,7 +917,7 @@ devredir_proc_client_devlist_announce_req(struct stream *s)
             return -1;
         }
         xstream_rd_u32_le(s, device_type);
-        xstream_rd_u32_le(s, g_device_id);
+        xstream_rd_u32_le(s, s_device_id);
         /* get preferred DOS name
          * DOS names that are 8 chars long are not NULL terminated */
         for (j = 0; j < 8; j++)
@@ -950,7 +950,7 @@ devredir_proc_client_devlist_announce_req(struct stream *s)
 
                 LOG_DEVEL(LOG_LEVEL_DEBUG,
                           "device_type=FILE_SYSTEM device_id=0x%x dosname=%s "
-                          "device_data_len=%d", g_device_id,
+                          "device_data_len=%d", s_device_id,
                           preferred_dos_name,
                           device_data_len);
 
@@ -958,7 +958,7 @@ devredir_proc_client_devlist_announce_req(struct stream *s)
 
                 /* create share directory in xrdp file system;    */
                 /* think of this as the mount point for this share */
-                xfuse_create_share(g_device_id, preferred_dos_name);
+                xfuse_create_share(s_device_id, preferred_dos_name);
                 break;
 
             case RDPDR_DTYP_SMARTCARD:
@@ -969,11 +969,11 @@ devredir_proc_client_devlist_announce_req(struct stream *s)
 
                 LOG_DEVEL(LOG_LEVEL_DEBUG,
                           "device_type=SMARTCARD device_id=0x%x dosname=%s",
-                          g_device_id, preferred_dos_name);
+                          s_device_id, preferred_dos_name);
 
                 response_status = STATUS_SUCCESS;
 
-                scard_device_announce(g_device_id);
+                scard_device_announce(s_device_id);
                 break;
 
             default:
@@ -990,13 +990,13 @@ devredir_proc_client_devlist_announce_req(struct stream *s)
                     description, preferred_dos_name);
                 LOG_DEVEL(LOG_LEVEL_DEBUG,
                           "description=%s dosname=%s device_id=0x%x",
-                          description, preferred_dos_name, g_device_id);
+                          description, preferred_dos_name, s_device_id);
             }
             break;
         }
 
         /* Tell the client wheth or not we're supporting this one */
-        devredir_send_server_device_announce_resp(g_device_id,
+        devredir_send_server_device_announce_resp(s_device_id,
                 response_status);
     }
 

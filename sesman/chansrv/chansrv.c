@@ -52,22 +52,22 @@
 
 #define MAX_PATH 260
 
-static struct trans *g_lis_trans = 0;
-static struct trans *g_con_trans = 0;
-static struct trans *g_api_lis_trans = 0;
-static struct list *g_api_con_trans_list = 0; /* list of apps using api functions */
-static struct chan_item g_chan_items[32];
-static int g_num_chan_items = 0;
-static int g_cliprdr_index = -1;
-static int g_rdpsnd_index = -1;
-static int g_rdpdr_index = -1;
-static int g_rail_index = -1;
+static struct trans *s_lis_trans = 0;
+static struct trans *s_con_trans = 0;
+static struct trans *s_api_lis_trans = 0;
+static struct list *s_api_con_trans_list = 0; /* list of apps using api functions */
+static struct chan_item s_chan_items[32];
+static int s_num_chan_items = 0;
+static int s_cliprdr_index = -1;
+static int s_rdpsnd_index = -1;
+static int s_rdpdr_index = -1;
+static int s_rail_index = -1;
 
-static tbus g_term_event = 0;
-static tintptr g_sigchld_event = 0;
-static tbus g_thread_done_event = 0;
+static tbus s_term_event = 0;
+static tintptr s_sigchld_event = 0;
+static tbus s_thread_done_event = 0;
 
-struct config_chansrv *g_cfg = NULL;
+struct config_chansrv *s_cfg = NULL;
 
 int g_display_num = -1;
 int g_cliprdr_chan_id = -1; /* cliprdr */
@@ -79,7 +79,7 @@ char *g_exec_name;
 tbus g_exec_event = 0;
 tbus g_exec_mutex;
 tbus g_exec_sem;
-static int g_exec_pid = 0;
+static int s_exec_pid = 0;
 
 #define ARRAYSIZE(x) (sizeof(x)/sizeof(*(x)))
 /* max total channel bytes size */
@@ -104,7 +104,7 @@ struct chansrv_drdynvc
     struct trans *xrdp_api_trans;
 };
 
-static struct chansrv_drdynvc g_drdynvcs[256];
+static struct chansrv_drdynvc s_drdynvcs[256];
 
 /* data in struct trans::callback_data */
 struct xrdp_api_data
@@ -121,8 +121,8 @@ struct timeout_obj
     struct timeout_obj *next;
 };
 
-static struct timeout_obj *g_timeout_head = 0;
-static struct timeout_obj *g_timeout_tail = 0;
+static struct timeout_obj *s_timeout_head = 0;
+static struct timeout_obj *s_timeout_tail = 0;
 
 /*****************************************************************************/
 int
@@ -137,15 +137,15 @@ add_timeout(int msoffset, void (*callback)(void *data), void *data)
     tobj->mstime = now + msoffset;
     tobj->callback = callback;
     tobj->data = data;
-    if (g_timeout_tail == 0)
+    if (s_timeout_tail == 0)
     {
-        g_timeout_head = tobj;
-        g_timeout_tail = tobj;
+        s_timeout_head = tobj;
+        s_timeout_tail = tobj;
     }
     else
     {
-        g_timeout_tail->next = tobj;
-        g_timeout_tail = tobj;
+        s_timeout_tail->next = tobj;
+        s_timeout_tail = tobj;
     }
     return 0;
 }
@@ -164,7 +164,7 @@ get_timeout(int *timeout)
     {
         ltimeout = 0;
     }
-    tobj = g_timeout_head;
+    tobj = s_timeout_head;
     if (tobj != 0)
     {
         now = g_get_elapsed_ms();
@@ -208,7 +208,7 @@ check_timeout(void)
     UNUSED_VAR(count);
     LOG_DEVEL(LOG_LEVEL_DEBUG, "check_timeout:");
     count = 0;
-    tobj = g_timeout_head;
+    tobj = s_timeout_head;
     if (tobj != 0)
     {
         last_tobj = 0;
@@ -221,18 +221,18 @@ check_timeout(void)
                 tobj->callback(tobj->data);
                 if (last_tobj == 0)
                 {
-                    g_timeout_head = tobj->next;
-                    if (g_timeout_head == 0)
+                    s_timeout_head = tobj->next;
+                    if (s_timeout_head == 0)
                     {
-                        g_timeout_tail = 0;
+                        s_timeout_tail = 0;
                     }
                 }
                 else
                 {
                     last_tobj->next = tobj->next;
-                    if (g_timeout_tail == tobj)
+                    if (s_timeout_tail == tobj)
                     {
-                        g_timeout_tail = last_tobj;
+                        s_timeout_tail = last_tobj;
                     }
                 }
                 temp_tobj = tobj;
@@ -254,7 +254,7 @@ check_timeout(void)
 int
 g_is_term(void)
 {
-    return g_is_wait_obj_set(g_term_event);
+    return g_is_wait_obj_set(s_term_event);
 }
 
 /*****************************************************************************/
@@ -287,7 +287,7 @@ send_channel_data(int chan_id, const char *data, int size)
         {
             chan_flags |= 2; /* last */
         }
-        s = trans_get_out_s(g_con_trans, 26 + sending_bytes);
+        s = trans_get_out_s(s_con_trans, 26 + sending_bytes);
         if (s == NULL)
         {
             return 2;
@@ -304,7 +304,7 @@ send_channel_data(int chan_id, const char *data, int size)
         s_mark_end(s);
         size -= sending_bytes;
         data += sending_bytes;
-        error = trans_write_copy(g_con_trans);
+        error = trans_write_copy(s_con_trans);
         if (error != 0)
         {
             return 3;
@@ -324,7 +324,7 @@ send_rail_drawing_orders(char *data, int size)
     struct stream *s;
     int error;
 
-    s = trans_get_out_s(g_con_trans, 8192);
+    s = trans_get_out_s(s_con_trans, 8192);
     if (s == NULL)
     {
         return 1;
@@ -335,7 +335,7 @@ send_rail_drawing_orders(char *data, int size)
     out_uint32_le(s, 8 + size); /* size */
     out_uint8a(s, data, size);
     s_mark_end(s);
-    error = trans_force_write(g_con_trans);
+    error = trans_force_write(s_con_trans);
     if (error != 0)
     {
         return 1;
@@ -353,11 +353,11 @@ process_message_channel_setup(struct stream *s)
     int rv;
     struct chan_item *ci;
 
-    g_num_chan_items = 0;
-    g_cliprdr_index = -1;
-    g_rdpsnd_index = -1;
-    g_rdpdr_index = -1;
-    g_rail_index = -1;
+    s_num_chan_items = 0;
+    s_cliprdr_index = -1;
+    s_rdpsnd_index = -1;
+    s_rdpdr_index = -1;
+    s_rail_index = -1;
     g_cliprdr_chan_id = -1;
     g_rdpsnd_chan_id = -1;
     g_rdpdr_chan_id = -1;
@@ -369,7 +369,7 @@ process_message_channel_setup(struct stream *s)
 
     for (index = 0; index < num_chans; index++)
     {
-        ci = &(g_chan_items[g_num_chan_items]);
+        ci = &(s_chan_items[s_num_chan_items]);
         g_memset(ci->name, 0, sizeof(ci->name));
         in_uint8a(s, ci->name, CHANNEL_NAME_LEN + 1);
         in_uint16_le(s, ci->id);
@@ -379,23 +379,23 @@ process_message_channel_setup(struct stream *s)
 
         if (g_strcasecmp(ci->name, CLIPRDR_SVC_CHANNEL_NAME) == 0)
         {
-            g_cliprdr_index = g_num_chan_items;
+            s_cliprdr_index = s_num_chan_items;
             g_cliprdr_chan_id = ci->id;
         }
         else if (g_strcasecmp(ci->name, RDPSND_SVC_CHANNEL_NAME) == 0)
         {
-            g_rdpsnd_index = g_num_chan_items;
+            s_rdpsnd_index = s_num_chan_items;
             g_rdpsnd_chan_id = ci->id;
         }
         else if (g_strcasecmp(ci->name, RDPDR_SVC_CHANNEL_NAME) == 0)
         {
-            g_rdpdr_index = g_num_chan_items;
+            s_rdpdr_index = s_num_chan_items;
             g_rdpdr_chan_id = ci->id;
         }
         /* disabled for now */
         else if (g_strcasecmp(ci->name, RAIL_SVC_CHANNEL_NAME) == 0)
         {
-            g_rail_index = g_num_chan_items;
+            s_rail_index = s_num_chan_items;
             g_rail_chan_id = ci->id;
         }
         else
@@ -403,29 +403,29 @@ process_message_channel_setup(struct stream *s)
             LOG_DEVEL(LOG_LEVEL_DEBUG, "other %s", ci->name);
         }
 
-        g_num_chan_items++;
+        s_num_chan_items++;
     }
 
     rv = 0;
 
-    if (g_cliprdr_index >= 0)
+    if (s_cliprdr_index >= 0)
     {
         clipboard_init();
         xfuse_init();
     }
 
-    if (g_rdpsnd_index >= 0)
+    if (s_rdpsnd_index >= 0)
     {
         sound_init();
     }
 
-    if (g_rdpdr_index >= 0)
+    if (s_rdpdr_index >= 0)
     {
         devredir_init();
         xfuse_init();
     }
 
-    if (g_rail_index >= 0)
+    if (s_rail_index >= 0)
     {
         rail_init();
     }
@@ -480,9 +480,9 @@ process_message_channel_data(struct stream *s)
         else
         {
             found = 0;
-            for (index = 0; index < g_api_con_trans_list->count; index++)
+            for (index = 0; index < s_api_con_trans_list->count; index++)
             {
-                ltran = (struct trans *) list_get_item(g_api_con_trans_list, index);
+                ltran = (struct trans *) list_get_item(s_api_con_trans_list, index);
                 if (ltran != NULL)
                 {
                     api_data = (struct xrdp_api_data *) (ltran->callback_data);
@@ -538,7 +538,7 @@ process_message_drdynvc_open_response(struct stream *s)
     {
         return 1;
     }
-    drdynvc = g_drdynvcs + chan_id;
+    drdynvc = s_drdynvcs + chan_id;
     if (drdynvc->status != CHANSRV_DRDYNVC_STATUS_OPEN_SENT)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "process_message_drdynvc_open_response: status not right");
@@ -581,7 +581,7 @@ process_message_drdynvc_close_response(struct stream *s)
     {
         return 1;
     }
-    drdynvc = g_drdynvcs + chan_id;
+    drdynvc = s_drdynvcs + chan_id;
     if (drdynvc->status != CHANSRV_DRDYNVC_STATUS_CLOSE_SENT)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "process_message_drdynvc_close_response: status not right");
@@ -627,7 +627,7 @@ process_message_drdynvc_data_first(struct stream *s)
     {
         return 1;
     }
-    drdynvc = g_drdynvcs + chan_id;
+    drdynvc = s_drdynvcs + chan_id;
     if (drdynvc->data_first != NULL)
     {
         if (drdynvc->data_first(chan_id, data, bytes, total_bytes) != 0)
@@ -661,7 +661,7 @@ process_message_drdynvc_data(struct stream *s)
         return 1;
     }
     in_uint8p(s, data, bytes);
-    drdynvc = g_drdynvcs + chan_id;
+    drdynvc = s_drdynvcs + chan_id;
     if (drdynvc->data != NULL)
     {
         if (drdynvc->data(chan_id, data, bytes) != 0)
@@ -684,7 +684,7 @@ chansrv_drdynvc_open(const char *name, int flags,
     int error;
 
     lchan_id = 1;
-    while (g_drdynvcs[lchan_id].status != CHANSRV_DRDYNVC_STATUS_CLOSED)
+    while (s_drdynvcs[lchan_id].status != CHANSRV_DRDYNVC_STATUS_CLOSED)
     {
         lchan_id++;
         if (lchan_id > 255)
@@ -692,7 +692,7 @@ chansrv_drdynvc_open(const char *name, int flags,
             return 1;
         }
     }
-    s = trans_get_out_s(g_con_trans, 8192);
+    s = trans_get_out_s(s_con_trans, 8192);
     if (s == NULL)
     {
         return 1;
@@ -707,17 +707,17 @@ chansrv_drdynvc_open(const char *name, int flags,
     out_uint32_le(s, flags);
     out_uint32_le(s, lchan_id);
     s_mark_end(s);
-    error = trans_write_copy(g_con_trans);
+    error = trans_write_copy(s_con_trans);
     if (error == 0)
     {
         if (chan_id != NULL)
         {
             *chan_id = lchan_id;
-            g_drdynvcs[lchan_id].open_response = procs->open_response;
-            g_drdynvcs[lchan_id].close_response = procs->close_response;
-            g_drdynvcs[lchan_id].data_first = procs->data_first;
-            g_drdynvcs[lchan_id].data = procs->data;
-            g_drdynvcs[lchan_id].status = CHANSRV_DRDYNVC_STATUS_OPEN_SENT;
+            s_drdynvcs[lchan_id].open_response = procs->open_response;
+            s_drdynvcs[lchan_id].close_response = procs->close_response;
+            s_drdynvcs[lchan_id].data_first = procs->data_first;
+            s_drdynvcs[lchan_id].data = procs->data;
+            s_drdynvcs[lchan_id].status = CHANSRV_DRDYNVC_STATUS_OPEN_SENT;
 
         }
     }
@@ -730,7 +730,7 @@ chansrv_drdynvc_open(const char *name, int flags,
 static int
 chansrv_advertise_unicode_input(int status)
 {
-    struct stream *s = trans_get_out_s(g_con_trans, 8192);
+    struct stream *s = trans_get_out_s(s_con_trans, 8192);
     if (s == NULL)
     {
         return 1;
@@ -741,7 +741,7 @@ chansrv_advertise_unicode_input(int status)
     out_uint32_le(s, 8 + 4);
     out_uint32_le(s, status);
     s_mark_end(s);
-    return trans_write_copy(g_con_trans);
+    return trans_write_copy(s_con_trans);
 }
 
 /*****************************************************************************/
@@ -752,7 +752,7 @@ chansrv_drdynvc_close(int chan_id)
     struct stream *s;
     int error;
 
-    s = trans_get_out_s(g_con_trans, 8192);
+    s = trans_get_out_s(s_con_trans, 8192);
     if (s == NULL)
     {
         return 1;
@@ -763,8 +763,8 @@ chansrv_drdynvc_close(int chan_id)
     out_uint32_le(s, 12);
     out_uint32_le(s, chan_id);
     s_mark_end(s);
-    error = trans_write_copy(g_con_trans);
-    g_drdynvcs[chan_id].status = CHANSRV_DRDYNVC_STATUS_CLOSE_SENT;
+    error = trans_write_copy(s_con_trans);
+    s_drdynvcs[chan_id].status = CHANSRV_DRDYNVC_STATUS_CLOSE_SENT;
     return error;
 }
 
@@ -778,7 +778,7 @@ chansrv_drdynvc_data_first(int chan_id, const char *data, int data_bytes,
 
     //LOG_DEVEL(LOG_LEVEL_DEBUG, "chansrv_drdynvc_data_first: data_bytes %d total_data_bytes %d",
     //          data_bytes, total_data_bytes);
-    s = trans_get_out_s(g_con_trans, 8192);
+    s = trans_get_out_s(s_con_trans, 8192);
     if (s == NULL)
     {
         return 1;
@@ -792,7 +792,7 @@ chansrv_drdynvc_data_first(int chan_id, const char *data, int data_bytes,
     out_uint32_le(s, total_data_bytes);
     out_uint8a(s, data, data_bytes);
     s_mark_end(s);
-    error = trans_write_copy(g_con_trans);
+    error = trans_write_copy(s_con_trans);
     return error;
 }
 
@@ -804,7 +804,7 @@ chansrv_drdynvc_data(int chan_id, const char *data, int data_bytes)
     int error;
 
     // LOG_DEVEL(LOG_LEVEL_DEBUG, "chansrv_drdynvc_data: data_bytes %d", data_bytes);
-    s = trans_get_out_s(g_con_trans, 8192);
+    s = trans_get_out_s(s_con_trans, 8192);
     if (s == NULL)
     {
         return 1;
@@ -817,7 +817,7 @@ chansrv_drdynvc_data(int chan_id, const char *data, int data_bytes)
     out_uint32_le(s, data_bytes);
     out_uint8a(s, data, data_bytes);
     s_mark_end(s);
-    error = trans_write_copy(g_con_trans);
+    error = trans_write_copy(s_con_trans);
     return error;
 }
 
@@ -917,12 +917,12 @@ process_message(void)
     int rv = 0;
     char *next_msg = (char *)NULL;
 
-    if (g_con_trans == 0)
+    if (s_con_trans == 0)
     {
         return 1;
     }
 
-    s = trans_get_in_s(g_con_trans);
+    s = trans_get_in_s(s_con_trans);
 
     if (s == 0)
     {
@@ -1008,7 +1008,7 @@ my_trans_data_in(struct trans *trans)
         return 0;
     }
 
-    if (trans != g_con_trans)
+    if (trans != s_con_trans)
     {
         return 1;
     }
@@ -1043,7 +1043,7 @@ my_trans_data_in(struct trans *trans)
 static struct trans *
 get_api_trans_from_chan_id(int chan_id)
 {
-    return g_drdynvcs[chan_id].xrdp_api_trans;
+    return s_drdynvcs[chan_id].xrdp_api_trans;
 }
 
 /*****************************************************************************/
@@ -1191,11 +1191,11 @@ my_api_trans_data_in(struct trans *trans)
         if (ad->chan_flags == 0)
         {
             /* SVC */
-            for (index = 0; index < g_num_chan_items; index++)
+            for (index = 0; index < s_num_chan_items; index++)
             {
-                if (g_strcasecmp(g_chan_items[index].name, chan_name) == 0)
+                if (g_strcasecmp(s_chan_items[index].name, chan_name) == 0)
                 {
-                    ad->chan_id = g_chan_items[index].id;
+                    ad->chan_id = s_chan_items[index].id;
                     rv = 0;
                     break;
                 }
@@ -1243,7 +1243,7 @@ my_api_trans_data_in(struct trans *trans)
                                       &procs, &(ad->chan_id));
             //LOG_DEVEL(LOG_LEVEL_DEBUG, "my_api_trans_data_in: chansrv_drdynvc_open rv %d "
             //          "chan_id %d", rv, ad->chan_id);
-            g_drdynvcs[ad->chan_id].xrdp_api_trans = trans;
+            s_drdynvcs[ad->chan_id].xrdp_api_trans = trans;
         }
         init_stream(s, 0);
         trans->extra_flags = 2;
@@ -1282,12 +1282,12 @@ my_trans_conn_in(struct trans *trans, struct trans *new_trans)
         return 1;
     }
 
-    if (trans != g_lis_trans)
+    if (trans != s_lis_trans)
     {
         return 1;
     }
 
-    if (g_con_trans != 0) /* if already set, error */
+    if (s_con_trans != 0) /* if already set, error */
     {
         return 1;
     }
@@ -1298,12 +1298,12 @@ my_trans_conn_in(struct trans *trans, struct trans *new_trans)
     }
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "my_trans_conn_in:");
-    g_con_trans = new_trans;
-    g_con_trans->trans_data_in = my_trans_data_in;
-    g_con_trans->header_size = 8;
+    s_con_trans = new_trans;
+    s_con_trans->trans_data_in = my_trans_data_in;
+    s_con_trans->header_size = 8;
     /* stop listening */
-    trans_delete(g_lis_trans);
-    g_lis_trans = 0;
+    trans_delete(s_lis_trans);
+    s_lis_trans = 0;
     return 0;
 }
 
@@ -1317,7 +1317,7 @@ my_api_trans_conn_in(struct trans *trans, struct trans *new_trans)
     struct xrdp_api_data *ad;
 
     //LOG_DEVEL(LOG_LEVEL_DEBUG, "my_api_trans_conn_in:");
-    if ((trans == NULL) || (trans != g_api_lis_trans) || (new_trans == NULL))
+    if ((trans == NULL) || (trans != s_api_lis_trans) || (new_trans == NULL))
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "my_api_trans_conn_in: error");
         return 1;
@@ -1332,7 +1332,7 @@ my_api_trans_conn_in(struct trans *trans, struct trans *new_trans)
         return 1;
     }
     new_trans->callback_data = ad;
-    list_add_item(g_api_con_trans_list, (intptr_t) new_trans);
+    list_add_item(s_api_con_trans_list, (intptr_t) new_trans);
     return 0;
 }
 
@@ -1343,17 +1343,17 @@ setup_listen(void)
     char port[XRDP_SOCKETS_MAXPATH];
     int error = 0;
 
-    if (g_lis_trans != 0)
+    if (s_lis_trans != 0)
     {
-        trans_delete(g_lis_trans);
+        trans_delete(s_lis_trans);
     }
 
-    g_lis_trans = trans_create(TRANS_MODE_UNIX, 8192, 8192);
-    g_lis_trans->is_term = g_is_term;
+    s_lis_trans = trans_create(TRANS_MODE_UNIX, 8192, 8192);
+    s_lis_trans->is_term = g_is_term;
     g_snprintf(port, sizeof(port), XRDP_CHANSRV_STR, g_getuid(), g_display_num);
 
-    g_lis_trans->trans_conn_in = my_trans_conn_in;
-    error = trans_listen(g_lis_trans, port);
+    s_lis_trans->trans_conn_in = my_trans_conn_in;
+    error = trans_listen(s_lis_trans, port);
 
     if (error != 0)
     {
@@ -1372,11 +1372,11 @@ setup_api_listen(void)
     char port[XRDP_SOCKETS_MAXPATH];
     int error = 0;
 
-    g_api_lis_trans = trans_create(TRANS_MODE_UNIX, 8192 * 4, 8192 * 4);
-    g_api_lis_trans->is_term = g_is_term;
+    s_api_lis_trans = trans_create(TRANS_MODE_UNIX, 8192 * 4, 8192 * 4);
+    s_api_lis_trans->is_term = g_is_term;
     g_snprintf(port, sizeof(port), CHANSRV_API_STR, g_getuid(), g_display_num);
-    g_api_lis_trans->trans_conn_in = my_api_trans_conn_in;
-    error = trans_listen(g_api_lis_trans, port);
+    s_api_lis_trans->trans_conn_in = my_api_trans_conn_in;
+    error = trans_listen(s_api_lis_trans, port);
 
     if (error != 0)
     {
@@ -1397,12 +1397,12 @@ api_con_trans_list_get_wait_objs_rw(intptr_t *robjs, int *rcount,
     int api_con_index;
     struct trans *ltran;
 
-    for (api_con_index = g_api_con_trans_list->count - 1;
+    for (api_con_index = s_api_con_trans_list->count - 1;
             api_con_index >= 0;
             api_con_index--)
     {
         ltran = (struct trans *)
-                list_get_item(g_api_con_trans_list, api_con_index);
+                list_get_item(s_api_con_trans_list, api_con_index);
         if (ltran != NULL)
         {
             trans_get_wait_objs_rw(ltran, robjs, rcount, wobjs, wcount,
@@ -1421,30 +1421,30 @@ api_con_trans_list_check_wait_objs(void)
     struct trans *ltran;
     struct xrdp_api_data *ad;
 
-    for (api_con_index = g_api_con_trans_list->count - 1;
+    for (api_con_index = s_api_con_trans_list->count - 1;
             api_con_index >= 0;
             api_con_index--)
     {
         ltran = (struct trans *)
-                list_get_item(g_api_con_trans_list, api_con_index);
+                list_get_item(s_api_con_trans_list, api_con_index);
         if (ltran != NULL)
         {
             if (trans_check_wait_objs(ltran) != 0)
             {
                 /* disconnect */
-                list_remove_item(g_api_con_trans_list, api_con_index);
+                list_remove_item(s_api_con_trans_list, api_con_index);
                 ad = (struct xrdp_api_data *) (ltran->callback_data);
                 if (ad->chan_flags != 0)
                 {
                     chansrv_drdynvc_close(ad->chan_id);
                 }
                 for (drdynvc_index = 0;
-                        drdynvc_index < (int) ARRAYSIZE(g_drdynvcs);
+                        drdynvc_index < (int) ARRAYSIZE(s_drdynvcs);
                         drdynvc_index++)
                 {
-                    if (g_drdynvcs[drdynvc_index].xrdp_api_trans == ltran)
+                    if (s_drdynvcs[drdynvc_index].xrdp_api_trans == ltran)
                     {
-                        g_drdynvcs[drdynvc_index].xrdp_api_trans = NULL;
+                        s_drdynvcs[drdynvc_index].xrdp_api_trans = NULL;
                     }
                 }
                 g_free(ad);
@@ -1462,15 +1462,15 @@ api_con_trans_list_remove_all(void)
     int api_con_index;
     struct trans *ltran;
 
-    for (api_con_index = g_api_con_trans_list->count - 1;
+    for (api_con_index = s_api_con_trans_list->count - 1;
             api_con_index >= 0;
             api_con_index--)
     {
         ltran = (struct trans *)
-                list_get_item(g_api_con_trans_list, api_con_index);
+                list_get_item(s_api_con_trans_list, api_con_index);
         if (ltran != NULL)
         {
-            list_remove_item(g_api_con_trans_list, api_con_index);
+            list_remove_item(s_api_con_trans_list, api_con_index);
             g_free(ltran->callback_data);
             trans_delete(ltran);
         }
@@ -1492,7 +1492,7 @@ channel_thread_loop(void *in_val)
 
     LOG_DEVEL(LOG_LEVEL_INFO, "channel_thread_loop: thread start");
     rv = 0;
-    g_api_con_trans_list = list_create();
+    s_api_con_trans_list = list_create();
     setup_api_listen();
     error = setup_listen();
 
@@ -1501,18 +1501,18 @@ channel_thread_loop(void *in_val)
         timeout = -1;
         num_objs = 0;
         num_wobjs = 0;
-        objs[num_objs] = g_term_event;
+        objs[num_objs] = s_term_event;
         num_objs++;
-        trans_get_wait_objs(g_lis_trans, objs, &num_objs);
-        trans_get_wait_objs(g_api_lis_trans, objs, &num_objs);
+        trans_get_wait_objs(s_lis_trans, objs, &num_objs);
+        trans_get_wait_objs(s_api_lis_trans, objs, &num_objs);
 
         //g_writeln("timeout %d", timeout);
         while (g_obj_wait(objs, num_objs, wobjs, num_wobjs, timeout) == 0)
         {
             check_timeout();
-            if (g_is_wait_obj_set(g_term_event))
+            if (g_is_wait_obj_set(s_term_event))
             {
-                LOG_DEVEL(LOG_LEVEL_INFO, "channel_thread_loop: g_term_event set");
+                LOG_DEVEL(LOG_LEVEL_INFO, "channel_thread_loop: s_term_event set");
                 clipboard_deinit();
                 sound_deinit();
                 devredir_deinit();
@@ -1520,18 +1520,18 @@ channel_thread_loop(void *in_val)
                 break;
             }
 
-            if (g_lis_trans != 0)
+            if (s_lis_trans != 0)
             {
-                if (trans_check_wait_objs(g_lis_trans) != 0)
+                if (trans_check_wait_objs(s_lis_trans) != 0)
                 {
                     LOG_DEVEL(LOG_LEVEL_INFO, "channel_thread_loop: "
                               "trans_check_wait_objs error");
                 }
             }
 
-            if (g_con_trans != 0)
+            if (s_con_trans != 0)
             {
-                if (trans_check_wait_objs(g_con_trans) != 0)
+                if (trans_check_wait_objs(s_con_trans) != 0)
                 {
                     LOG_DEVEL(LOG_LEVEL_INFO, "channel_thread_loop: "
                               "trans_check_wait_objs error resetting");
@@ -1539,9 +1539,9 @@ channel_thread_loop(void *in_val)
                     sound_deinit();
                     devredir_deinit();
                     rail_deinit();
-                    /* delete g_con_trans */
-                    trans_delete(g_con_trans);
-                    g_con_trans = 0;
+                    /* delete s_con_trans */
+                    trans_delete(s_con_trans);
+                    s_con_trans = 0;
                     /* create new listener */
                     error = setup_listen();
 
@@ -1552,14 +1552,14 @@ channel_thread_loop(void *in_val)
                 }
             }
 
-            if (g_api_lis_trans != 0)
+            if (s_api_lis_trans != 0)
             {
-                if (trans_check_wait_objs(g_api_lis_trans) != 0)
+                if (trans_check_wait_objs(s_api_lis_trans) != 0)
                 {
                     LOG_DEVEL(LOG_LEVEL_ERROR, "channel_thread_loop: trans_check_wait_objs failed");
                 }
             }
-            /* check the wait_objs in g_api_con_trans_list */
+            /* check the wait_objs in s_api_con_trans_list */
             api_con_trans_list_check_wait_objs();
             xcommon_check_wait_objs();
             sound_check_wait_objs();
@@ -1568,15 +1568,15 @@ channel_thread_loop(void *in_val)
             timeout = -1;
             num_objs = 0;
             num_wobjs = 0;
-            objs[num_objs] = g_term_event;
+            objs[num_objs] = s_term_event;
             num_objs++;
-            trans_get_wait_objs_rw(g_lis_trans, objs, &num_objs,
+            trans_get_wait_objs_rw(s_lis_trans, objs, &num_objs,
                                    wobjs, &num_wobjs, &timeout);
-            trans_get_wait_objs_rw(g_con_trans, objs, &num_objs,
+            trans_get_wait_objs_rw(s_con_trans, objs, &num_objs,
                                    wobjs, &num_wobjs, &timeout);
-            trans_get_wait_objs_rw(g_api_lis_trans, objs, &num_objs,
+            trans_get_wait_objs_rw(s_api_lis_trans, objs, &num_objs,
                                    wobjs, &num_wobjs, &timeout);
-            /* get the wait_objs from in g_api_con_trans_list */
+            /* get the wait_objs from in s_api_con_trans_list */
             api_con_trans_list_get_wait_objs_rw(objs, &num_objs,
                                                 wobjs, &num_wobjs,
                                                 &timeout);
@@ -1588,16 +1588,16 @@ channel_thread_loop(void *in_val)
         } /* end while (g_obj_wait(objs, num_objs, 0, 0, timeout) == 0) */
     }
 
-    trans_delete(g_lis_trans);
-    g_lis_trans = 0;
-    trans_delete(g_con_trans);
-    g_con_trans = 0;
-    trans_delete(g_api_lis_trans);
-    g_api_lis_trans = 0;
+    trans_delete(s_lis_trans);
+    s_lis_trans = 0;
+    trans_delete(s_con_trans);
+    s_con_trans = 0;
+    trans_delete(s_api_lis_trans);
+    s_api_lis_trans = 0;
     api_con_trans_list_remove_all();
-    list_delete(g_api_con_trans_list);
+    list_delete(s_api_con_trans_list);
     LOG_DEVEL(LOG_LEVEL_INFO, "channel_thread_loop: thread stop");
-    g_set_wait_obj(g_thread_done_event);
+    g_set_wait_obj(s_thread_done_event);
     return rv;
 }
 
@@ -1605,7 +1605,7 @@ channel_thread_loop(void *in_val)
 static void
 term_signal_handler(int sig)
 {
-    g_set_wait_obj(g_term_event);
+    g_set_wait_obj(s_term_event);
 }
 
 /*****************************************************************************/
@@ -1618,7 +1618,7 @@ nil_signal_handler(int sig)
 static void
 set_sigchld_event(int sig)
 {
-    g_set_wait_obj(g_sigchld_event);
+    g_set_wait_obj(s_sigchld_event);
 }
 
 /*****************************************************************************/
@@ -1631,7 +1631,7 @@ child_signal_handler(void)
     while ((pid = g_waitchild(NULL)) > 0)
     {
         LOG_DEVEL(LOG_LEVEL_INFO, "child_signal_handler: child pid %d", pid);
-        if (pid == g_exec_pid)
+        if (pid == s_exec_pid)
         {
             LOG_DEVEL(LOG_LEVEL_INFO, "child_signal_handler: found pid %d", pid);
             //shutdownx();
@@ -1662,17 +1662,17 @@ x_server_fatal_handler(void)
 int
 main_cleanup(void)
 {
-    if (g_term_event != 0)
+    if (s_term_event != 0)
     {
-        g_delete_wait_obj(g_term_event);
+        g_delete_wait_obj(s_term_event);
     }
-    if (g_sigchld_event != 0)
+    if (s_sigchld_event != 0)
     {
-        g_delete_wait_obj(g_sigchld_event);
+        g_delete_wait_obj(s_sigchld_event);
     }
-    if (g_thread_done_event != 0)
+    if (s_thread_done_event != 0)
     {
-        g_delete_wait_obj(g_thread_done_event);
+        g_delete_wait_obj(s_thread_done_event);
     }
     if (g_exec_event != 0)
     {
@@ -1681,7 +1681,7 @@ main_cleanup(void)
         tc_sem_delete(g_exec_sem);
     }
     log_end();
-    config_free(g_cfg);
+    config_free(s_cfg);
     g_deinit(); /* os_calls */
     return 0;
 }
@@ -1694,7 +1694,7 @@ get_log_path(char *path, int bytes)
     int rv;
 
     rv = 1;
-    if (g_cfg->log_file_path != NULL && g_cfg->log_file_path[0] != '\0')
+    if (s_cfg->log_file_path != NULL && s_cfg->log_file_path[0] != '\0')
     {
         char uidstr[64];
         char username[64];
@@ -1713,7 +1713,7 @@ get_log_path(char *path, int bytes)
             g_strncpy(username, uidstr, sizeof(username) - 1);
         }
 
-        (void)g_format_info_string(path, bytes, g_cfg->log_file_path, map);
+        (void)g_format_info_string(path, bytes, s_cfg->log_file_path, map);
         if (g_directory_exist(path) || (g_mkdir(path) == 0))
         {
             rv = 0;
@@ -1771,10 +1771,10 @@ run_exec(void)
 
     if (pid == 0)
     {
-        trans_delete(g_con_trans);
-        g_close_wait_obj(g_term_event);
-        g_close_wait_obj(g_sigchld_event);
-        g_close_wait_obj(g_thread_done_event);
+        trans_delete(s_con_trans);
+        g_close_wait_obj(s_term_event);
+        g_close_wait_obj(s_sigchld_event);
+        g_close_wait_obj(s_thread_done_event);
         g_close_wait_obj(g_exec_event);
         tc_mutex_delete(g_exec_mutex);
         tc_sem_delete(g_exec_sem);
@@ -1782,7 +1782,7 @@ run_exec(void)
         g_exit(0);
     }
 
-    g_exec_pid = pid;
+    s_exec_pid = pid;
     tc_sem_inc(g_exec_sem);
 
     return 0;
@@ -1820,7 +1820,7 @@ chansrv_create_xrdp_socket_path(void)
 
         struct trans *t = NULL;
 
-        if (!(t = scp_connect(g_cfg->listen_port, "xrdp-chansrv", g_is_term)))
+        if (!(t = scp_connect(s_cfg->listen_port, "xrdp-chansrv", g_is_term)))
         {
             LOG(LOG_LEVEL_ERROR, "Can't connect to sesman");
         }
@@ -1850,7 +1850,7 @@ main(int argc, char **argv)
     enum logReturns error;
     struct log_config *logconfig;
     g_init("xrdp-chansrv"); /* os_calls */
-    g_memset(g_drdynvcs, 0, sizeof(g_drdynvcs));
+    g_memset(s_drdynvcs, 0, sizeof(s_drdynvcs));
 
     display_text = g_getenv("DISPLAY");
     if (display_text == NULL)
@@ -1871,12 +1871,12 @@ main(int argc, char **argv)
      * The user is unable at present to override the sysadmin-provided
      * sesman.ini location */
     config_path = XRDP_CFG_PATH "/sesman.ini";
-    if ((g_cfg = config_read(0, config_path)) == NULL)
+    if ((s_cfg = config_read(0, config_path)) == NULL)
     {
         main_cleanup();
         return 1;
     }
-    config_dump(g_cfg);
+    config_dump(s_cfg);
 
     if (get_log_path(log_path, sizeof(log_path)) != 0)
     {
@@ -1936,9 +1936,9 @@ main(int argc, char **argv)
 
     /*  set up signal objects  */
     g_snprintf(text, sizeof(text), "xrdp_chansrv_%8.8x_main_term", pid);
-    g_term_event = g_create_wait_obj(text);
+    s_term_event = g_create_wait_obj(text);
     g_snprintf(text, sizeof(text), "xrdp_chansrv_%8.8x_sigchld", pid);
-    g_sigchld_event = g_create_wait_obj(text);
+    s_sigchld_event = g_create_wait_obj(text);
 
     /*  set up signal handlers */
     g_signal_terminate(term_signal_handler); /* SIGTERM */
@@ -1961,14 +1961,14 @@ main(int argc, char **argv)
 
     /* Set up the channel thread */
     g_snprintf(text, sizeof(text), "xrdp_chansrv_%8.8x_thread_done", pid);
-    g_thread_done_event = g_create_wait_obj(text);
+    s_thread_done_event = g_create_wait_obj(text);
     tc_thread_create(channel_thread_loop, 0);
 
-    while (g_term_event > 0 && !g_is_wait_obj_set(g_term_event))
+    while (s_term_event > 0 && !g_is_wait_obj_set(s_term_event))
     {
-        waiters[0] = g_term_event;
+        waiters[0] = s_term_event;
         waiters[1] = g_exec_event;
-        waiters[2] = g_sigchld_event;
+        waiters[2] = s_sigchld_event;
 
         if (g_obj_wait(waiters, 3, 0, 0, -1) != 0)
         {
@@ -1976,14 +1976,14 @@ main(int argc, char **argv)
             break;
         }
 
-        if (g_is_wait_obj_set(g_term_event))
+        if (g_is_wait_obj_set(s_term_event))
         {
             break;
         }
 
-        if (g_is_wait_obj_set(g_sigchld_event))
+        if (g_is_wait_obj_set(s_sigchld_event))
         {
-            g_reset_wait_obj(g_sigchld_event);
+            g_reset_wait_obj(s_sigchld_event);
             child_signal_handler();
         }
 
@@ -1994,10 +1994,10 @@ main(int argc, char **argv)
         }
     }
 
-    while (g_thread_done_event > 0 && !g_is_wait_obj_set(g_thread_done_event))
+    while (s_thread_done_event > 0 && !g_is_wait_obj_set(s_thread_done_event))
     {
         /* wait for thread to exit */
-        if (g_obj_wait(&g_thread_done_event, 1, 0, 0, -1) != 0)
+        if (g_obj_wait(&s_thread_done_event, 1, 0, 0, -1) != 0)
         {
             LOG_DEVEL(LOG_LEVEL_ERROR, "main: error, g_obj_wait failed");
             break;

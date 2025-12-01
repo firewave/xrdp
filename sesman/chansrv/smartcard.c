@@ -125,9 +125,9 @@ typedef struct smartcard
 
 /* globals */
 static SMARTCARD   *smartcards[MAX_SMARTCARDS];
-static int          g_smartcards_inited = 0;
-static tui32 g_device_id = 0;
-static int   g_scard_index = 0;
+static int          s_smartcards_inited = 0;
+static tui32 s_device_id = 0;
+static int   s_scard_index = 0;
 
 
 /******************************************************************************
@@ -273,24 +273,24 @@ scard_device_announce(tui32 device_id)
 {
     LOG_DEVEL(LOG_LEVEL_DEBUG, "entered: device_id=%d", device_id);
 
-    if (g_smartcards_inited)
+    if (s_smartcards_inited)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "already init");
         return;
     }
 
     g_memset(&smartcards, 0, sizeof(smartcards));
-    g_smartcards_inited = 1;
-    g_device_id = device_id;
-    g_scard_index = scard_add_new_device(device_id);
+    s_smartcards_inited = 1;
+    s_device_id = device_id;
+    s_scard_index = scard_add_new_device(device_id);
 
-    if (g_scard_index < 0)
+    if (s_scard_index < 0)
     {
-        LOG_DEVEL(LOG_LEVEL_DEBUG, "scard_add_new_device failed with DeviceId=%d", g_device_id);
+        LOG_DEVEL(LOG_LEVEL_DEBUG, "scard_add_new_device failed with DeviceId=%d", s_device_id);
     }
     else
     {
-        LOG_DEVEL(LOG_LEVEL_DEBUG, "added smartcard with DeviceId=%d to list", g_device_id);
+        LOG_DEVEL(LOG_LEVEL_DEBUG, "added smartcard with DeviceId=%d to list", s_device_id);
     }
 }
 
@@ -331,7 +331,7 @@ scard_deinit(void)
     LOG_DEVEL(LOG_LEVEL_INFO, "scard_deinit:");
     scard_pcsc_deinit();
     scard_release_resources();
-    g_smartcards_inited = 0;
+    s_smartcards_inited = 0;
     return 0;
 }
 
@@ -350,9 +350,9 @@ scard_send_establish_context(void *user_data, int scope)
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_EstablishContext_Return;
     irp->user_data = user_data;
 
@@ -378,9 +378,9 @@ scard_send_release_context(void *user_data,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_ReleaseContext_Return;
     irp->user_data = user_data;
 
@@ -405,9 +405,9 @@ scard_send_is_valid_context(void *user_data, char *context, int context_bytes)
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_IsContextValid_Return;
     irp->user_data = user_data;
 
@@ -432,9 +432,9 @@ scard_send_list_readers(void *user_data, char *context, int context_bytes,
         LOG_DEVEL(LOG_LEVEL_ERROR, "system out of memory");
         return 1;
     }
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_ListReaders_Return;
     irp->user_data = user_data;
 
@@ -467,9 +467,9 @@ scard_send_get_status_change(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_GetStatusChange_Return;
     irp->user_data = user_data;
 
@@ -498,9 +498,9 @@ scard_send_connect(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_Connect_Return;
     irp->user_data = user_data;
 
@@ -532,9 +532,9 @@ scard_send_reconnect(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_Reconnect_Return;
     irp->user_data = user_data;
 
@@ -562,9 +562,9 @@ scard_send_begin_transaction(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_BeginTransaction_Return;
     irp->user_data = user_data;
 
@@ -593,9 +593,9 @@ scard_send_end_transaction(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_EndTransaction_Return;
     irp->user_data = user_data;
 
@@ -625,9 +625,9 @@ scard_send_status(void *user_data, int wide, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_Status_Return;
     irp->user_data = user_data;
 
@@ -655,9 +655,9 @@ scard_send_disconnect(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_Disconnect_Return;
     irp->user_data = user_data;
 
@@ -688,9 +688,9 @@ scard_send_transmit(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_Transmit_Return;
     irp->user_data = user_data;
 
@@ -720,9 +720,9 @@ scard_send_control(void *user_data, char *context, int context_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_Control_Return;
     irp->user_data = user_data;
 
@@ -750,9 +750,9 @@ scard_send_cancel(void *user_data, char *context, int context_bytes)
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_Cancel_Return;
     irp->user_data = user_data;
 
@@ -778,9 +778,9 @@ scard_send_get_attrib(void *user_data, char *card, int card_bytes,
         return 1;
     }
 
-    irp->scard_index = g_scard_index;
+    irp->scard_index = s_scard_index;
     irp->CompletionId = g_completion_id++;
-    irp->DeviceId = g_device_id;
+    irp->DeviceId = s_device_id;
     irp->callback = scard_handle_GetAttrib_Return;
     irp->user_data = user_data;
 

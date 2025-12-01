@@ -40,21 +40,21 @@
 #define TSSK_KEY_LENGTH 64
 
 /* default to 2048 bit key size, can set changed, set */
-static int g_key_size_bits = 2048;
+static int s_key_size_bits = 2048;
 
-static tui8 g_exponent[4] =
+static tui8 s_exponent[4] =
 {
     0x01, 0x00, 0x01, 0x00
 };
 
 /* 4 bytes public exponent */
-static tui8 g_ppk_e[4] =
+static tui8 s_ppk_e[4] =
 {
     0x5B, 0x7B, 0x88, 0xC0
 };
 
 /* 64 byte modulus */
-static tui8 g_ppk_n[72] = /* 64 bytes + 8 bytes pad */
+static tui8 s_ppk_n[72] = /* 64 bytes + 8 bytes pad */
 {
     0x3D, 0x3A, 0x5E, 0xBD, 0x72, 0x43, 0x3E, 0xC9,
     0x4D, 0xBB, 0xC1, 0x1E, 0x4A, 0xBA, 0x5F, 0xCB,
@@ -68,7 +68,7 @@ static tui8 g_ppk_n[72] = /* 64 bytes + 8 bytes pad */
 };
 
 /* 64 bytes private exponent */
-static tui8 g_ppk_d[108] = /* 64 bytes + 44 bytes pad */
+static tui8 s_ppk_d[108] = /* 64 bytes + 44 bytes pad */
 {
     0x87, 0xA7, 0x19, 0x32, 0xDA, 0x11, 0x87, 0x55,
     0x58, 0x00, 0x16, 0x16, 0x25, 0x65, 0x68, 0xF8,
@@ -102,7 +102,7 @@ static tui8 g_ppk_d[108] = /* 64 bytes + 44 bytes pad */
   wSignatureBlobLen  110   2  bytes        0x0048      72 bytes
     SignatureBlob    112  72  bytes */
 
-static tui8 g_testkey512[184] = /* 512 bit test key */
+static tui8 s_testkey512[184] = /* 512 bit test key */
 {
     0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, /* 0 */
     0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x5c, 0x00,
@@ -145,7 +145,7 @@ static tui8 g_testkey512[184] = /* 512 bit test key */
   wSignatureBlobLen  302   2  bytes        0x0048      72 bytes
     SignatureBlob    304  72  bytes */
 
-static tui8 g_testkey2048[376] = /* 2048 bit test key */
+static tui8 s_testkey2048[376] = /* 2048 bit test key */
 {
     0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, /* 0 */
     0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x1c, 0x01,
@@ -229,7 +229,7 @@ sign_key(const char *e_data, int e_len, const char *n_data, int n_len,
         md5_final = (char *)g_malloc(64, 0);
         md5 = ssl_md5_info_create();
         /* copy the test key */
-        g_memcpy(key, g_testkey512, 184);
+        g_memcpy(key, s_testkey512, 184);
         /* replace e and n */
         g_memcpy(key + 32, e_data, e_len);
         g_memcpy(key + 36, n_data, n_len);
@@ -245,8 +245,8 @@ sign_key(const char *e_data, int e_len, const char *n_data, int n_len,
         md5_final[62] = 1;
         md5_final[63] = 0;
         /* encrypt */
-        ssl_mod_exp(sign_data, sign_len, md5_final, 64, (char *)g_ppk_n, 64,
-                    (char *)g_ppk_d, 64);
+        ssl_mod_exp(sign_data, sign_len, md5_final, 64, (char *)s_ppk_n, 64,
+                    (char *)s_ppk_d, 64);
         /* cleanup */
         ssl_md5_info_delete(md5);
         g_free(key);
@@ -258,7 +258,7 @@ sign_key(const char *e_data, int e_len, const char *n_data, int n_len,
         md5_final = (char *)g_malloc(64, 0);
         md5 = ssl_md5_info_create();
         /* copy the test key */
-        g_memcpy(key, g_testkey2048, 376);
+        g_memcpy(key, s_testkey2048, 376);
         /* replace e and n */
         g_memcpy(key + 32, e_data, e_len);
         g_memcpy(key + 36, n_data, n_len);
@@ -274,8 +274,8 @@ sign_key(const char *e_data, int e_len, const char *n_data, int n_len,
         md5_final[62] = 1;
         md5_final[63] = 0;
         /* encrypt */
-        ssl_mod_exp(sign_data, sign_len, md5_final, 64, (char *)g_ppk_n, 64,
-                    (char *)g_ppk_d, 64);
+        ssl_mod_exp(sign_data, sign_len, md5_final, 64, (char *)s_ppk_n, 64,
+                    (char *)s_ppk_d, 64);
         /* cleanup */
         ssl_md5_info_delete(md5);
         g_free(key);
@@ -409,7 +409,7 @@ key_gen(const char *path_and_file_name)
     char d_data[256] = {0};
     char sign_data[64] = {0};
     int e_len = 4;
-    int n_len = g_key_size_bits / 8;
+    int n_len = s_key_size_bits / 8;
     int d_len = n_len;
     int sign_len = sizeof(sign_data);
     int error = 0;
@@ -422,14 +422,14 @@ key_gen(const char *path_and_file_name)
     }
     else
     {
-        e_data = (char *)g_exponent;
+        e_data = (char *)s_exponent;
         g_writeln("%s", "");
-        g_writeln("Generating %d bit rsa key...", g_key_size_bits);
+        g_writeln("Generating %d bit rsa key...", s_key_size_bits);
         g_writeln("%s", "");
 
         if (error == 0)
         {
-            error = ssl_gen_key_xrdp1(g_key_size_bits, e_data, e_len, n_data, n_len,
+            error = ssl_gen_key_xrdp1(s_key_size_bits, e_data, e_len, n_data, n_len,
                                       d_data, d_len);
             if (error != 0)
             {
@@ -483,15 +483,15 @@ key_test512(void)
     sig = (char *)g_malloc(64, 0);
     md5 = ssl_md5_info_create();
     g_writeln("original key is:");
-    g_hexdump((char *)g_testkey512, 184);
+    g_hexdump((char *)s_testkey512, 184);
     g_writeln("original exponent is:");
-    g_hexdump((char *)g_testkey512 + 32, 4);
+    g_hexdump((char *)s_testkey512 + 32, 4);
     g_writeln("original modulus is:");
-    g_hexdump((char *)g_testkey512 + 36, 64);
+    g_hexdump((char *)s_testkey512 + 36, 64);
     g_writeln("original signature is:");
-    g_hexdump((char *)g_testkey512 + 112, 64);
+    g_hexdump((char *)s_testkey512 + 112, 64);
     ssl_md5_clear(md5);
-    ssl_md5_transform(md5, (char *)g_testkey512, 108);
+    ssl_md5_transform(md5, (char *)s_testkey512, 108);
     g_memset(md5_final, 0xff, 64);
     ssl_md5_complete(md5, md5_final);
     g_writeln("md5 hash of first 108 bytes of this key is:");
@@ -499,13 +499,13 @@ key_test512(void)
     md5_final[16] = 0;
     md5_final[62] = 1;
     md5_final[63] = 0;
-    ssl_mod_exp(sig, 64, md5_final, 64, (char *)g_ppk_n, 64, (char *)g_ppk_d, 64);
+    ssl_mod_exp(sig, 64, md5_final, 64, (char *)s_ppk_n, 64, (char *)s_ppk_d, 64);
     g_writeln("produced signature(this should match original "
               "signature above) is:");
     g_hexdump(sig, 64);
     g_memset(md5_final, 0, 64);
-    ssl_mod_exp(md5_final, 64, (char *)g_testkey512 + 112, 64, (char *)g_ppk_n, 64,
-                (char *)g_ppk_e, 4);
+    ssl_mod_exp(md5_final, 64, (char *)s_testkey512 + 112, 64, (char *)s_ppk_n, 64,
+                (char *)s_ppk_e, 4);
     g_writeln("decrypted hash of first 108 bytes of this key is:");
     g_hexdump(md5_final, 64);
     ssl_md5_info_delete(md5);
@@ -526,15 +526,15 @@ key_test2048(void)
     sig = (char *)g_malloc(64, 0);
     md5 = ssl_md5_info_create();
     g_writeln("original key is:");
-    g_hexdump((char *)g_testkey2048, 376);
+    g_hexdump((char *)s_testkey2048, 376);
     g_writeln("original exponent is:");
-    g_hexdump((char *)g_testkey2048 + 32, 4);
+    g_hexdump((char *)s_testkey2048 + 32, 4);
     g_writeln("original modulus is:");
-    g_hexdump((char *)g_testkey2048 + 36, 256);
+    g_hexdump((char *)s_testkey2048 + 36, 256);
     g_writeln("original signature is:");
-    g_hexdump((char *)g_testkey2048 + 304, 64);
+    g_hexdump((char *)s_testkey2048 + 304, 64);
     ssl_md5_clear(md5);
-    ssl_md5_transform(md5, (char *)g_testkey2048, 300);
+    ssl_md5_transform(md5, (char *)s_testkey2048, 300);
     g_memset(md5_final, 0xff, 64);
     ssl_md5_complete(md5, md5_final);
     g_writeln("md5 hash of first 300 bytes of this key is:");
@@ -542,13 +542,13 @@ key_test2048(void)
     md5_final[16] = 0;
     md5_final[62] = 1;
     md5_final[63] = 0;
-    ssl_mod_exp(sig, 64, md5_final, 64, (char *)g_ppk_n, 64, (char *)g_ppk_d, 64);
+    ssl_mod_exp(sig, 64, md5_final, 64, (char *)s_ppk_n, 64, (char *)s_ppk_d, 64);
     g_writeln("produced signature(this should match original "
               "signature above) is:");
     g_hexdump(sig, 64);
     g_memset(md5_final, 0, 64);
-    ssl_mod_exp(md5_final, 64, (char *)g_testkey2048 + 304, 64, (char *)g_ppk_n, 64,
-                (char *)g_ppk_e, 4);
+    ssl_mod_exp(md5_final, 64, (char *)s_testkey2048 + 304, 64, (char *)s_ppk_n, 64,
+                (char *)s_ppk_e, 4);
     g_writeln("decrypted hash of first 108 bytes of this key is:");
     g_hexdump(md5_final, 64);
     ssl_md5_info_delete(md5);
@@ -569,8 +569,8 @@ main(int argc, char **argv)
             {
                 if (argc > 3)
                 {
-                    g_key_size_bits = g_atoi(argv[3]);
-                    if ((g_key_size_bits != 512) && (g_key_size_bits != 2048))
+                    s_key_size_bits = g_atoi(argv[3]);
+                    if ((s_key_size_bits != 512) && (s_key_size_bits != 2048))
                     {
                         out_params();
                         return 0;

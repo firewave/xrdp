@@ -80,15 +80,15 @@ struct sesman_startup_params
 
 struct config_sesman *g_cfg;
 tintptr g_term_event = 0;
-static tintptr g_sigchld_event = 0;
-static tintptr g_reload_event = 0;
+static tintptr s_sigchld_event = 0;
+static tintptr s_reload_event = 0;
 
-static struct trans *g_list_trans;
+static struct trans *s_list_trans;
 
-/* Variables used to lock g_list_trans */
-static struct lock_uds *g_list_trans_lock;
+/* Variables used to lock s_list_trans */
+static struct lock_uds *s_list_trans_lock;
 
-static int g_pid;
+static int s_pid;
 
 /*****************************************************************************/
 /**
@@ -221,8 +221,8 @@ sesman_close_all(void)
     scp_list_cleanup();
     session_list_cleanup();
 
-    g_delete_wait_obj(g_reload_event);
-    g_delete_wait_obj(g_sigchld_event);
+    g_delete_wait_obj(s_reload_event);
+    g_delete_wait_obj(s_sigchld_event);
     g_delete_wait_obj(g_term_event);
 
     sesman_delete_listening_transport();
@@ -339,7 +339,7 @@ static void
 set_term_event(int sig)
 {
     /* Don't try to use a wait obj in a child process */
-    if (g_getpid() == g_pid)
+    if (g_getpid() == s_pid)
     {
         g_set_wait_obj(g_term_event);
     }
@@ -365,9 +365,9 @@ static void
 set_sigchld_event(int sig)
 {
     /* Don't try to use a wait obj in a child process */
-    if (g_getpid() == g_pid)
+    if (g_getpid() == s_pid)
     {
-        g_set_wait_obj(g_sigchld_event);
+        g_set_wait_obj(s_sigchld_event);
     }
 }
 
@@ -379,9 +379,9 @@ static void
 set_reload_event(int sig)
 {
     /* Don't try to use a wait obj in a child process */
-    if (g_getpid() == g_pid)
+    if (g_getpid() == s_pid)
     {
-        g_set_wait_obj(g_reload_event);
+        g_set_wait_obj(s_reload_event);
     }
 }
 
@@ -389,18 +389,18 @@ set_reload_event(int sig)
 void
 sesman_delete_listening_transport(void)
 {
-    if (g_getpid() == g_pid)
+    if (g_getpid() == s_pid)
     {
-        trans_delete(g_list_trans);
+        trans_delete(s_list_trans);
     }
     else
     {
-        trans_delete_from_child(g_list_trans);
+        trans_delete_from_child(s_list_trans);
     }
-    g_list_trans = NULL;
+    s_list_trans = NULL;
 
-    unlock_uds(g_list_trans_lock); // Won't unlock anything for a child process
-    g_list_trans_lock = NULL;
+    unlock_uds(s_list_trans_lock); // Won't unlock anything for a child process
+    s_list_trans_lock = NULL;
 }
 
 /******************************************************************************/
@@ -408,18 +408,18 @@ int
 sesman_create_listening_transport(const struct config_sesman *cfg)
 {
     int rv = 1;
-    g_list_trans = trans_create(TRANS_MODE_UNIX, 8192, 8192);
-    if (g_list_trans == NULL)
+    s_list_trans = trans_create(TRANS_MODE_UNIX, 8192, 8192);
+    if (s_list_trans == NULL)
     {
         LOG(LOG_LEVEL_ERROR, "%s: trans_create failed", __func__);
     }
-    else if ((g_list_trans_lock = lock_uds(cfg->listen_port)) != NULL)
+    else if ((s_list_trans_lock = lock_uds(cfg->listen_port)) != NULL)
     {
         /* Make sure the file is always created with the correct
          * permissions, if it's not there */
         int entry_umask = g_umask_hex(0x666);
         LOG_DEVEL(LOG_LEVEL_DEBUG, "%s: port %s", __func__, cfg->listen_port);
-        rv = trans_listen_address(g_list_trans, cfg->listen_port, NULL);
+        rv = trans_listen_address(s_list_trans, cfg->listen_port, NULL);
         if (rv != 0)
         {
             LOG(LOG_LEVEL_ERROR, "%s: trans_listen_address failed", __func__);
@@ -437,7 +437,7 @@ sesman_create_listening_transport(const struct config_sesman *cfg)
         }
         else
         {
-            g_list_trans->trans_conn_in = sesman_listen_conn_in;
+            s_list_trans->trans_conn_in = sesman_listen_conn_in;
         }
         g_umask_hex(entry_umask);
     }
@@ -483,14 +483,14 @@ sesman_main_loop(void)
     {
         robjs_count = 0;
         robjs[robjs_count++] = g_term_event;
-        robjs[robjs_count++] = g_sigchld_event;
-        robjs[robjs_count++] = g_reload_event;
+        robjs[robjs_count++] = s_sigchld_event;
+        robjs[robjs_count++] = s_reload_event;
 
-        if (g_list_trans != NULL)
+        if (s_list_trans != NULL)
         {
-            /* g_list_trans might be NULL on a reconfigure if sesman
+            /* s_list_trans might be NULL on a reconfigure if sesman
              * is unable to listen again */
-            error = trans_get_wait_objs(g_list_trans, robjs, &robjs_count);
+            error = trans_get_wait_objs(s_list_trans, robjs, &robjs_count);
             if (error != 0)
             {
                 LOG(LOG_LEVEL_ERROR, "sesman_main_loop: "
@@ -530,9 +530,9 @@ sesman_main_loop(void)
             break;
         }
 
-        if (g_is_wait_obj_set(g_sigchld_event)) /* term */
+        if (g_is_wait_obj_set(s_sigchld_event)) /* term */
         {
-            g_reset_wait_obj(g_sigchld_event);
+            g_reset_wait_obj(s_sigchld_event);
             // Prevent any zombies from hanging around
             while (g_waitchild(NULL) > 0)
             {
@@ -540,15 +540,15 @@ sesman_main_loop(void)
             }
         }
 
-        if (g_is_wait_obj_set(g_reload_event)) /* We're asked to reload */
+        if (g_is_wait_obj_set(s_reload_event)) /* We're asked to reload */
         {
-            g_reset_wait_obj(g_reload_event);
+            g_reset_wait_obj(s_reload_event);
             sig_sesman_reload_cfg();
         }
 
-        if (g_list_trans != NULL)
+        if (s_list_trans != NULL)
         {
-            error = trans_check_wait_objs(g_list_trans);
+            error = trans_check_wait_objs(s_list_trans);
             if (error != 0)
             {
                 LOG(LOG_LEVEL_ERROR, "sesman_main_loop: "
@@ -887,15 +887,15 @@ main(int argc, char **argv)
     }
 
     /* Now we've forked (if necessary), we can get the program PID */
-    g_pid = g_getpid();
+    s_pid = g_getpid();
 
     /* signal handling */
-    g_snprintf(text, 255, "xrdp_sesman_%8.8x_main_term", g_pid);
+    g_snprintf(text, 255, "xrdp_sesman_%8.8x_main_term", s_pid);
     g_term_event = g_create_wait_obj(text);
-    g_snprintf(text, 255, "xrdp_sesman_%8.8x_sigchld", g_pid);
-    g_sigchld_event = g_create_wait_obj(text);
-    g_snprintf(text, 255, "xrdp_sesman_%8.8x_reload", g_pid);
-    g_reload_event = g_create_wait_obj(text);
+    g_snprintf(text, 255, "xrdp_sesman_%8.8x_sigchld", s_pid);
+    s_sigchld_event = g_create_wait_obj(text);
+    g_snprintf(text, 255, "xrdp_sesman_%8.8x_reload", s_pid);
+    s_reload_event = g_create_wait_obj(text);
 
     g_signal_user_interrupt(set_term_event); /* SIGINT  */
     g_signal_terminate(set_term_event); /* SIGTERM */
@@ -920,14 +920,14 @@ main(int argc, char **argv)
             g_exit(1);
         }
 
-        g_sprintf(pid_s, "%d", g_pid);
+        g_sprintf(pid_s, "%d", s_pid);
         g_file_write(fd, pid_s, g_strlen(pid_s));
         g_file_close(fd);
     }
 
     /* start program main loop */
     LOG(LOG_LEVEL_INFO,
-        "starting xrdp-sesman with pid %d", g_pid);
+        "starting xrdp-sesman with pid %d", s_pid);
 
     /* make sure the X11_UNIX_SOCKET_DIRECTORY exists */
     if (!g_directory_exist(X11_UNIX_SOCKET_DIRECTORY))

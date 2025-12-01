@@ -70,9 +70,9 @@ static tSCardSetAttrib aSCardSetAttrib;
 //__declspec(dllexport) const SCARD_IO_REQUEST g_rgSCardT1Pci = { 0 };
 //__declspec(dllexport) const SCARD_IO_REQUEST g_rgSCardRawPci = { 0 };
 
-static int g_true = 1;
+static int s_true = 1;
 
-#define LLOGLN(_level, _args) do { if ((_level < 11) && g_true) { writeln _args ; } } while (0)
+#define LLOGLN(_level, _args) do { if ((_level < 11) && s_true) { writeln _args ; } } while (0)
 
 /*****************************************************************************/
 static int
@@ -97,7 +97,7 @@ writeln(const char *format, ...)
         } \
     } while (0)
 
-static int g_funcs_loaded = 0;
+static int s_funcs_loaded = 0;
 
 /*****************************************************************************/
 static int __fastcall
@@ -105,11 +105,11 @@ load_funcs(void)
 {
     HMODULE lib;
 
-    if (g_funcs_loaded)
+    if (s_funcs_loaded)
     {
         return 0;
     }
-    g_funcs_loaded = 1;
+    s_funcs_loaded = 1;
     lib = LoadLibrary("winscard-org.dll");
     LLOGLN(0, ("load_funcs: lib %p", lib));
     LLOAD(aSCardEstablishContext, tSCardEstablishContext, "SCardEstablishContext");

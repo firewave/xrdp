@@ -45,7 +45,7 @@
       ) \
     )
 
-static struct list *g_scp_list = NULL;
+static struct list *s_scp_list = NULL;
 
 /**
  * Deletes a scp_list_item, freeing resources
@@ -74,18 +74,18 @@ int
 scp_list_init(unsigned int list_size)
 {
     int rv = 1;
-    if (g_scp_list == NULL)
+    if (s_scp_list == NULL)
     {
-        g_scp_list = list_create_sized(list_size);
+        s_scp_list = list_create_sized(list_size);
     }
 
-    if (g_scp_list == NULL)
+    if (s_scp_list == NULL)
     {
         LOG(LOG_LEVEL_ERROR, "Can't allocate SCP list");
     }
     else
     {
-        g_scp_list->auto_free = 0;
+        s_scp_list->auto_free = 0;
         rv = 0;
     }
 
@@ -96,17 +96,17 @@ scp_list_init(unsigned int list_size)
 void
 scp_list_cleanup(void)
 {
-    if (g_scp_list != NULL)
+    if (s_scp_list != NULL)
     {
         int i;
-        for (i = 0 ; i < g_scp_list->count ; ++i)
+        for (i = 0 ; i < s_scp_list->count ; ++i)
         {
             struct scp_list_item *p;
-            p = (struct scp_list_item *)list_get_item(g_scp_list, i);
+            p = (struct scp_list_item *)list_get_item(s_scp_list, i);
             free_scp_list_item(p);
         }
-        list_delete(g_scp_list);
-        g_scp_list = NULL;
+        list_delete(s_scp_list);
+        s_scp_list = NULL;
     }
 }
 
@@ -114,7 +114,7 @@ scp_list_cleanup(void)
 unsigned int
 scp_list_get_count(void)
 {
-    return g_scp_list->count;
+    return s_scp_list->count;
 }
 
 /******************************************************************************/
@@ -127,7 +127,7 @@ scp_list_item_new(void)
         g_snprintf(result->peername, sizeof(result->peername), "unknown");
         result->uid = (uid_t) -1;
         result->session_display = -1;
-        if (!list_add_item(g_scp_list, (tintptr)result))
+        if (!list_add_item(s_scp_list, (tintptr)result))
         {
             g_free(result);
             result = NULL;
@@ -158,10 +158,10 @@ scp_list_get_wait_objs(tbus robjs[], int *robjs_count)
 {
     int i = 0;
 
-    while (i < g_scp_list->count)
+    while (i < s_scp_list->count)
     {
         struct scp_list_item *sli;
-        sli = (struct scp_list_item *)list_get_item(g_scp_list, i);
+        sli = (struct scp_list_item *)list_get_item(s_scp_list, i);
         int sli_in_use = 0;
 
         if (sli != NULL)
@@ -188,7 +188,7 @@ scp_list_get_wait_objs(tbus robjs[], int *robjs_count)
         else
         {
             free_scp_list_item(sli);
-            list_remove_item(g_scp_list, i);
+            list_remove_item(s_scp_list, i);
         }
     }
 
@@ -201,12 +201,12 @@ scp_list_check_wait_objs(void)
 {
     int i = 0;
 
-    while (i < g_scp_list->count)
+    while (i < s_scp_list->count)
     {
         struct scp_list_item *sli;
         enum scp_list_dispatcher_action action;
 
-        sli = (struct scp_list_item *)list_get_item(g_scp_list, i);
+        sli = (struct scp_list_item *)list_get_item(s_scp_list, i);
         action = E_SLD_TERMINATE_SCP_CONN;
 
         if (SCP_LIST_ITEM_IN_USE(sli))
@@ -253,7 +253,7 @@ scp_list_check_wait_objs(void)
                 break;
             case E_SLD_TERMINATE_SCP_CONN:
                 free_scp_list_item(sli);
-                list_remove_item(g_scp_list, i);
+                list_remove_item(s_scp_list, i);
                 break;
         }
     }
@@ -266,11 +266,11 @@ void
 scp_list_get_create_session_displays(struct set_int *alloc_displays)
 {
     int i = 0;
-    for (i = 0; i < g_scp_list->count; ++i)
+    for (i = 0; i < s_scp_list->count; ++i)
     {
         struct scp_list_item *sli;
 
-        sli = (struct scp_list_item *)list_get_item(g_scp_list, i);
+        sli = (struct scp_list_item *)list_get_item(s_scp_list, i);
 
         if (SCP_LIST_ITEM_IN_USE(sli) &&
                 sli->create_session_in_progress)

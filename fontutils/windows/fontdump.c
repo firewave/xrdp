@@ -25,16 +25,16 @@
 #include "os_calls.h"
 #include "arch.h"
 
-static HINSTANCE g_instance = 0;
-static HWND g_wnd = 0;
-static HWND g_lb = 0;
-static HWND g_exit_button = 0;
-static HWND g_go_button = 0;
-static HWND g_font_list = 0;
-static char g_font_name[512] = "";
-static int g_font_size = 10;
-static HFONT g_font = 0;
-static int g_running = 0;
+static HINSTANCE s_instance = 0;
+static HWND s_wnd = 0;
+static HWND s_lb = 0;
+static HWND s_exit_button = 0;
+static HWND s_go_button = 0;
+static HWND s_font_list = 0;
+static char s_font_name[512] = "";
+static int s_font_size = 10;
+static HFONT s_font = 0;
+static int s_running = 0;
 
 #define FONT_DATASIZE(_w, _h) (((_h * ((_w + 7) / 8)) + 3) & ~3)
 
@@ -63,7 +63,7 @@ msg(char *msg1, ...)
 
     va_start(ap, msg1);
     vsnprintf(text1, 511, msg1, ap);
-    SendMessageA(g_lb, LB_ADDSTRING, 0, (LPARAM)text1);
+    SendMessageA(s_lb, LB_ADDSTRING, 0, (LPARAM)text1);
     va_end(ap);
     return 0;
 }
@@ -123,42 +123,42 @@ font_dump(void)
     tui8 b1;
     short x2;
 
-    if (g_running)
+    if (s_running)
     {
         return 0;
     }
 
-    g_running = 1;
+    s_running = 1;
     msg("starting");
-    g_font_name[0] = 0;
-    SendMessageA(g_font_list, WM_GETTEXT, 255, (LPARAM)g_font_name);
+    s_font_name[0] = 0;
+    SendMessageA(s_font_list, WM_GETTEXT, 255, (LPARAM)s_font_name);
 
-    if (g_strlen(g_font_name) == 0)
+    if (g_strlen(s_font_name) == 0)
     {
         msg("error font not set");
-        g_running = 0;
+        s_running = 0;
         return 1;
     }
 
-    dc = GetDC(g_wnd);
-    height = -MulDiv(g_font_size, GetDeviceCaps(dc, LOGPIXELSY), 72);
-    g_font = CreateFontA(height, 0, 0, 0, FW_DONTCARE, 0, 0, 0, 0, 0, 0,
-                         0, 0, g_font_name);
-    ReleaseDC(g_wnd, dc);
+    dc = GetDC(s_wnd);
+    height = -MulDiv(s_font_size, GetDeviceCaps(dc, LOGPIXELSY), 72);
+    s_font = CreateFontA(height, 0, 0, 0, FW_DONTCARE, 0, 0, 0, 0, 0, 0,
+                         0, 0, s_font_name);
+    ReleaseDC(s_wnd, dc);
 
-    if (g_font == 0)
+    if (s_font == 0)
     {
         msg("error - Font creation failed");
     }
 
     zero1 = 0;
-    g_snprintf(filename, 255, "%s-%d.fv1", g_font_name, g_font_size);
+    g_snprintf(filename, 255, "%s-%d.fv1", s_font_name, s_font_size);
     msg("creating file %s", filename);
     g_file_delete(filename);
     fd = g_file_open_rw(filename);
     g_file_write(fd, "FNT1", 4);
-    strlen1 = g_strlen(g_font_name);
-    g_file_write(fd, g_font_name, strlen1);
+    strlen1 = g_strlen(s_font_name);
+    g_file_write(fd, s_font_name, strlen1);
     x1 = strlen1;
 
     while (x1 < 32)
@@ -167,7 +167,7 @@ font_dump(void)
         x1++;
     }
 
-    x2 = g_font_size; /* font size */
+    x2 = s_font_size; /* font size */
     g_file_write(fd, (char *)&x2, 2);
     x2 = 1; /* style */
     g_file_write(fd, (char *)&x2, 2);
@@ -183,8 +183,8 @@ font_dump(void)
     for (x1 = 32; x1 < 0x4e00; x1++)
     {
         check_messages();
-        dc = GetWindowDC(g_wnd);
-        saved = SelectObject(dc, g_font);
+        dc = GetWindowDC(s_wnd);
+        saved = SelectObject(dc, s_font);
 
         if (!GetCharABCWidths(dc, x1, x1, &abc))
         {
@@ -200,12 +200,12 @@ font_dump(void)
         }
 
         SelectObject(dc, saved);
-        ReleaseDC(g_wnd, dc);
+        ReleaseDC(s_wnd, dc);
 
         if ((sz.cx > 0) && (sz.cy > 0))
         {
-            dc = GetWindowDC(g_wnd);
-            saved = SelectObject(dc, g_font);
+            dc = GetWindowDC(s_wnd);
+            saved = SelectObject(dc, s_font);
             SetBkColor(dc, RGB(255, 255, 255));
 
             if (!ExtTextOut(dc, 50, 50, ETO_OPAQUE, 0, text, 1, 0))
@@ -214,7 +214,7 @@ font_dump(void)
             }
 
             SelectObject(dc, saved);
-            ReleaseDC(g_wnd, dc);
+            ReleaseDC(s_wnd, dc);
             Sleep(10);
             /* width */
             x2 = abc.abcB;
@@ -240,7 +240,7 @@ font_dump(void)
                 index1++;
             }
 
-            dc = GetWindowDC(g_wnd);
+            dc = GetWindowDC(s_wnd);
             rect.left = 50 + abc.abcA;
             rect.top = 50;
             rect.right = rect.left + abc.abcB;
@@ -363,7 +363,7 @@ font_dump(void)
             brush = CreateSolidBrush(RGB(255, 255, 255));
             FillRect(dc, &rect, brush);
             DeleteObject(brush);
-            ReleaseDC(g_wnd, dc);
+            ReleaseDC(s_wnd, dc);
         }
         else
         {
@@ -405,7 +405,7 @@ font_dump(void)
 
     g_file_close(fd);
     msg("done");
-    g_running = 0;
+    s_running = 0;
     return 0;
 }
 
@@ -428,30 +428,30 @@ wnd_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             EndPaint(hWnd, &ps);
             break;
         case WM_CLOSE:
-            DestroyWindow(g_wnd);
-            g_wnd = 0;
+            DestroyWindow(s_wnd);
+            s_wnd = 0;
             break;
         case WM_DESTROY:
             PostQuitMessage(0);
             break;
         case WM_TIMER:
-            KillTimer(g_wnd, 1);
+            KillTimer(s_wnd, 1);
             font_dump();
             break;
         case WM_COMMAND:
 
-            if ((HWND)lParam == g_exit_button)
+            if ((HWND)lParam == s_exit_button)
             {
-                PostMessage(g_wnd, WM_CLOSE, 0, 0);
+                PostMessage(s_wnd, WM_CLOSE, 0, 0);
             }
-            else if ((HWND)lParam == g_go_button)
+            else if ((HWND)lParam == s_go_button)
             {
-                while (SendMessage(g_lb, LB_GETCOUNT, 0, 0) > 0)
+                while (SendMessage(s_lb, LB_GETCOUNT, 0, 0) > 0)
                 {
-                    SendMessage(g_lb, LB_DELETESTRING, 0, 0);
+                    SendMessage(s_lb, LB_DELETESTRING, 0, 0);
                 }
 
-                SetTimer(g_wnd, 1, 1000, 0);
+                SetTimer(s_wnd, 1, 1000, 0);
             }
 
             break;
@@ -485,28 +485,28 @@ create_window(void)
             WS_SYSMENU | WS_SIZEBOX | WS_MAXIMIZEBOX;
     left = GetSystemMetrics(SM_CXSCREEN) / 2 - 640 / 2;
     top = GetSystemMetrics(SM_CYSCREEN) / 2 - 480 / 2;
-    g_wnd = CreateWindow(wc.lpszClassName, _T("fontdump"),
+    s_wnd = CreateWindow(wc.lpszClassName, _T("fontdump"),
                          style, left, top, 640, 480,
-                         (HWND) NULL, (HMENU) NULL, g_instance,
+                         (HWND) NULL, (HMENU) NULL, s_instance,
                          (LPVOID) NULL);
     style = WS_CHILD | WS_VISIBLE | WS_BORDER;
-    g_lb = CreateWindow(_T("LISTBOX"), _T("LISTBOX1"), style,
-                        200, 10, 400, 400, g_wnd, 0, g_instance, 0);
+    s_lb = CreateWindow(_T("LISTBOX"), _T("LISTBOX1"), style,
+                        200, 10, 400, 400, s_wnd, 0, s_instance, 0);
     style = WS_CHILD | WS_VISIBLE;
-    g_exit_button = CreateWindow(_T("BUTTON"), _T("Exit"), style,
-                                 540, 410, 75, 25, g_wnd, 0, g_instance, 0);
-    g_go_button = CreateWindow(_T("BUTTON"), _T("Go"), style,
-                               440, 410, 75, 25, g_wnd, 0, g_instance, 0);
+    s_exit_button = CreateWindow(_T("BUTTON"), _T("Exit"), style,
+                                 540, 410, 75, 25, s_wnd, 0, s_instance, 0);
+    s_go_button = CreateWindow(_T("BUTTON"), _T("Go"), style,
+                               440, 410, 75, 25, s_wnd, 0, s_instance, 0);
     style = WS_CHILD | WS_VISIBLE | CBS_DROPDOWN;
-    g_font_list = CreateWindow(_T("COMBOBOX"), _T("COMBOBOX1"), style,
-                               50, 250, 125, 125, g_wnd, 0, g_instance, 0);
-    ShowWindow(g_wnd, SW_SHOWNORMAL);
-    PostMessage(g_wnd, WM_SETFONT, (WPARAM)g_font, 0);
-    SendMessageA(g_font_list, CB_ADDSTRING, 0, (LPARAM)"Tahoma");
-    SendMessageA(g_font_list, CB_ADDSTRING, 0, (LPARAM)"DejaVu Serif");
-    SendMessageA(g_font_list, CB_ADDSTRING, 0, (LPARAM)"DejaVu Sans");
-    SendMessageA(g_font_list, CB_ADDSTRING, 0, (LPARAM)"Arial");
-    SendMessageA(g_font_list, CB_ADDSTRING, 0, (LPARAM)"Comic Sans MS");
+    s_font_list = CreateWindow(_T("COMBOBOX"), _T("COMBOBOX1"), style,
+                               50, 250, 125, 125, s_wnd, 0, s_instance, 0);
+    ShowWindow(s_wnd, SW_SHOWNORMAL);
+    PostMessage(s_wnd, WM_SETFONT, (WPARAM)s_font, 0);
+    SendMessageA(s_font_list, CB_ADDSTRING, 0, (LPARAM)"Tahoma");
+    SendMessageA(s_font_list, CB_ADDSTRING, 0, (LPARAM)"DejaVu Serif");
+    SendMessageA(s_font_list, CB_ADDSTRING, 0, (LPARAM)"DejaVu Sans");
+    SendMessageA(s_font_list, CB_ADDSTRING, 0, (LPARAM)"Arial");
+    SendMessageA(s_font_list, CB_ADDSTRING, 0, (LPARAM)"Comic Sans MS");
     return 0;
 }
 
@@ -530,7 +530,7 @@ int WINAPI
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
         LPSTR lpCmdLine, int nCmdShow)
 {
-    g_instance = hInstance;
+    s_instance = hInstance;
     create_window();
     return main_loop();
 }

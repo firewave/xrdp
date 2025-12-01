@@ -43,7 +43,7 @@
 #include "log.h"
 
 /* Here we store the current state and configuration of the log */
-static struct log_config *g_staticLogConfig = NULL;
+static struct log_config *s_staticLogConfig = NULL;
 
 /* This file first start with all private functions.
    In the end of the file the public functions is defined */
@@ -570,13 +570,13 @@ internal_log_is_enabled_for_level(const enum logLevels log_level,
                                   const enum logLevels override_log_level)
 {
     /* Is log initialized? */
-    if (g_staticLogConfig == NULL)
+    if (s_staticLogConfig == NULL)
     {
         return 0;
     }
-    else if (g_staticLogConfig->fd < 0
-             && !g_staticLogConfig->enable_syslog
-             && !g_staticLogConfig->enable_console)
+    else if (s_staticLogConfig->fd < 0
+             && !s_staticLogConfig->enable_syslog
+             && !s_staticLogConfig->enable_console)
     {
         /* all logging outputs are disabled */
         return 0;
@@ -588,18 +588,18 @@ internal_log_is_enabled_for_level(const enum logLevels log_level,
     }
     /* Override is disabled - Is there at least one log destination
      * which will accept the message based on the log level? */
-    else if (g_staticLogConfig->fd >= 0
-             && log_level <= g_staticLogConfig->log_level)
+    else if (s_staticLogConfig->fd >= 0
+             && log_level <= s_staticLogConfig->log_level)
     {
         return 1;
     }
-    else if (g_staticLogConfig->enable_syslog
-             && log_level <= g_staticLogConfig->syslog_level)
+    else if (s_staticLogConfig->enable_syslog
+             && log_level <= s_staticLogConfig->syslog_level)
     {
         return 1;
     }
-    else if (g_staticLogConfig->enable_console
-             && log_level <= g_staticLogConfig->console_level)
+    else if (s_staticLogConfig->enable_console
+             && log_level <= s_staticLogConfig->console_level)
     {
         return 1;
     }
@@ -618,13 +618,13 @@ internal_log_location_overrides_level(const char *function_name,
     struct log_logger_level *logger = NULL;
     int i;
 
-    if (g_staticLogConfig == NULL)
+    if (s_staticLogConfig == NULL)
     {
         return 0;
     }
-    for (i = 0; i < g_staticLogConfig->per_logger_level->count; i++)
+    for (i = 0; i < s_staticLogConfig->per_logger_level->count; i++)
     {
-        logger = (struct log_logger_level *)list_get_item(g_staticLogConfig->per_logger_level, i);
+        logger = (struct log_logger_level *)list_get_item(s_staticLogConfig->per_logger_level, i);
 
         if ((logger->logger_type == LOG_TYPE_FILE
                 && 0 == g_strncmp(logger->logger_name, file_name, LOGGER_NAME_SIZE))
@@ -739,7 +739,7 @@ log_restart_from_param(const struct log_config *lc)
 {
     enum logReturns rv = LOG_GENERAL_ERROR;
 
-    if (g_staticLogConfig == NULL)
+    if (s_staticLogConfig == NULL)
     {
         log_message(LOG_LEVEL_ALWAYS, "Log not already initialized");
     }
@@ -749,16 +749,16 @@ log_restart_from_param(const struct log_config *lc)
     }
     else
     {
-        if (g_staticLogConfig->fd >= 0 &&
-                g_strcmp(g_staticLogConfig->log_file, lc->log_file) != 0)
+        if (s_staticLogConfig->fd >= 0 &&
+                g_strcmp(s_staticLogConfig->log_file, lc->log_file) != 0)
         {
             log_message(LOG_LEVEL_WARNING,
                         "Unable to change log file name from %s to %s",
-                        g_staticLogConfig->log_file,
+                        s_staticLogConfig->log_file,
                         lc->log_file);
         }
         /* Reconfigure syslog logging, allowing for a program_name change */
-        if (g_staticLogConfig->enable_syslog)
+        if (s_staticLogConfig->enable_syslog)
         {
             closelog();
         }
@@ -769,15 +769,15 @@ log_restart_from_param(const struct log_config *lc)
 
         /* Copy over simple values... */
 #ifdef LOG_ENABLE_THREAD
-        g_staticLogConfig->log_lock = lc->log_lock;
-        g_staticLogConfig->log_lock_attr = lc->log_lock_attr;
+        s_staticLogConfig->log_lock = lc->log_lock;
+        s_staticLogConfig->log_lock_attr = lc->log_lock_attr;
 #endif
-        g_staticLogConfig->program_name = lc->program_name;
-        g_staticLogConfig->enable_pid = lc->enable_pid;
-        g_staticLogConfig->dump_on_start = lc->dump_on_start;
+        s_staticLogConfig->program_name = lc->program_name;
+        s_staticLogConfig->enable_pid = lc->enable_pid;
+        s_staticLogConfig->dump_on_start = lc->dump_on_start;
 
         /* ... and the log levels */
-        internal_log_config_copy_levels(g_staticLogConfig, lc);
+        internal_log_config_copy_levels(s_staticLogConfig, lc);
         rv = LOG_STARTUP_OK;
     }
     return rv;
@@ -788,7 +788,7 @@ log_start_from_param(const struct log_config *src_log_config)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
 
-    if (g_staticLogConfig != NULL)
+    if (s_staticLogConfig != NULL)
     {
         log_message(LOG_LEVEL_ALWAYS, "Log already initialized");
         return ret;
@@ -801,21 +801,21 @@ log_start_from_param(const struct log_config *src_log_config)
     }
     else
     {
-        g_staticLogConfig = internalInitAndAllocStruct();
-        if (g_staticLogConfig == NULL)
+        s_staticLogConfig = internalInitAndAllocStruct();
+        if (s_staticLogConfig == NULL)
         {
             g_writeln("internalInitAndAllocStruct failed");
             return LOG_ERROR_MALLOC;
         }
-        internal_log_config_copy(g_staticLogConfig, src_log_config);
+        internal_log_config_copy(s_staticLogConfig, src_log_config);
 
-        ret = internal_log_start(g_staticLogConfig);
+        ret = internal_log_start(s_staticLogConfig);
         if (ret != LOG_STARTUP_OK)
         {
             g_writeln("Could not start log");
 
-            log_config_free(g_staticLogConfig);
-            g_staticLogConfig = NULL;
+            log_config_free(s_staticLogConfig);
+            s_staticLogConfig = NULL;
         }
     }
 
@@ -874,9 +874,9 @@ enum logReturns
 log_end(void)
 {
     enum logReturns ret = LOG_GENERAL_ERROR;
-    ret = internal_log_end(g_staticLogConfig);
-    log_config_free(g_staticLogConfig);
-    g_staticLogConfig = NULL;
+    ret = internal_log_end(s_staticLogConfig);
+    log_config_free(s_staticLogConfig);
+    s_staticLogConfig = NULL;
 
     return ret;
 }
@@ -965,7 +965,7 @@ log_message_with_location(const char *function_name,
     enum logLevels override_log_level = LOG_LEVEL_NEVER;
     bool_t override_destination_level = 0;
 
-    if (g_staticLogConfig == NULL)
+    if (s_staticLogConfig == NULL)
     {
         g_writeln("The log reference is NULL - log not initialized properly "
                   "when called from [%s(%s:%d)]",
@@ -1017,15 +1017,15 @@ internal_log_message(const enum logLevels lvl,
     enum logReturns rv = LOG_STARTUP_OK;
     int writereply = 0;
 
-    if (g_staticLogConfig == NULL)
+    if (s_staticLogConfig == NULL)
     {
         g_writeln("The log reference is NULL - log not initialized properly");
         return LOG_ERROR_NO_CFG;
     }
 
-    if (0 > g_staticLogConfig->fd
-            && g_staticLogConfig->enable_syslog == 0
-            && g_staticLogConfig->enable_console == 0)
+    if (0 > s_staticLogConfig->fd
+            && s_staticLogConfig->enable_syslog == 0
+            && s_staticLogConfig->enable_console == 0)
     {
         return LOG_ERROR_FILE_NOT_OPEN;
     }
@@ -1039,7 +1039,7 @@ internal_log_message(const enum logLevels lvl,
 
     internal_log_lvl2str(lvl, buff + 31);
 
-    if (g_staticLogConfig->enable_pid)
+    if (s_staticLogConfig->enable_pid)
     {
         /* 31 (datetime) + 8 (log level) = 39 */
         g_snprintf(buff + 39, LOG_BUFFER_SIZE, "[pid:%d tid:%lld] ",
@@ -1071,34 +1071,34 @@ internal_log_message(const enum logLevels lvl,
 #endif
 #endif
 
-    if (g_staticLogConfig->enable_syslog
+    if (s_staticLogConfig->enable_syslog
             && ((override_destination_level && lvl <= override_log_level)
-                || (!override_destination_level && lvl <= g_staticLogConfig->syslog_level)))
+                || (!override_destination_level && lvl <= s_staticLogConfig->syslog_level)))
     {
         /* log to syslog*/
         /* %s fix compiler warning 'not a string literal' */
         syslog(internal_log_xrdp2syslog(lvl), "%s", buff + 31);
     }
 
-    if (g_staticLogConfig->enable_console
+    if (s_staticLogConfig->enable_console
             && ((override_destination_level && lvl <= override_log_level)
-                || (!override_destination_level && lvl <= g_staticLogConfig->console_level)))
+                || (!override_destination_level && lvl <= s_staticLogConfig->console_level)))
     {
         /* log to console */
         g_printf("%s", buff);
     }
 
     if ((override_destination_level && lvl <= override_log_level)
-            || (!override_destination_level && lvl <= g_staticLogConfig->log_level))
+            || (!override_destination_level && lvl <= s_staticLogConfig->log_level))
     {
         /* log to application logfile */
-        if (g_staticLogConfig->fd >= 0)
+        if (s_staticLogConfig->fd >= 0)
         {
 #ifdef LOG_ENABLE_THREAD
-            pthread_mutex_lock(&(g_staticLogConfig->log_lock));
+            pthread_mutex_lock(&(s_staticLogConfig->log_lock));
 #endif
 
-            writereply = g_file_write(g_staticLogConfig->fd, buff, g_strlen(buff));
+            writereply = g_file_write(s_staticLogConfig->fd, buff, g_strlen(buff));
 
             if (writereply <= 0)
             {
@@ -1106,7 +1106,7 @@ internal_log_message(const enum logLevels lvl,
             }
 
 #ifdef LOG_ENABLE_THREAD
-            pthread_mutex_unlock(&(g_staticLogConfig->log_lock));
+            pthread_mutex_unlock(&(s_staticLogConfig->log_lock));
 #endif
         }
     }
@@ -1120,11 +1120,11 @@ internal_log_message(const enum logLevels lvl,
 char *
 getLogFile(char *replybuf, int bufsize)
 {
-    if (g_staticLogConfig)
+    if (s_staticLogConfig)
     {
-        if (g_staticLogConfig->log_file)
+        if (s_staticLogConfig->log_file)
         {
-            g_strncpy(replybuf, g_staticLogConfig->log_file, bufsize);
+            g_strncpy(replybuf, s_staticLogConfig->log_file, bufsize);
         }
         else
         {

@@ -53,10 +53,10 @@ struct cb_file_info
     tui64 time;
 };
 
-static struct list *g_files_list = 0;
+static struct list *s_files_list = 0;
 
 /* used when server is asking for file info from the client */
-static int g_file_request_sent_type = 0;
+static int s_file_request_sent_type = 0;
 
 /* number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC */
 #define CB_EPOCH_DIFF 11644473600LL
@@ -264,7 +264,7 @@ clipboard_get_file(const char *file, int bytes)
     }
     else
     {
-        list_add_item(g_files_list, (tintptr)cfi);
+        list_add_item(s_files_list, (tintptr)cfi);
         cfi->size = g_file_get_size(full_fn);
         cfi->flags = CB_FILE_ATTRIBUTE_ARCHIVE;
         cfi->time = (time(NULL) + CB_EPOCH_DIFF) * 10000000LL;
@@ -311,7 +311,7 @@ clipboard_get_files(const char *files, int bytes)
     {
         (void)clipboard_get_file(start, end - start);
     }
-    if (g_files_list->count < 1)
+    if (s_files_list->count < 1)
     {
         return 1;
     }
@@ -339,14 +339,14 @@ clipboard_send_data_response_for_file(const char *data, int data_size)
     LOG_DEVEL(LOG_LEVEL_DEBUG, "clipboard_send_data_response_for_file: data_size %d",
               data_size);
     LOG_DEVEL_HEXDUMP(LOG_LEVEL_TRACE, "", data, data_size);
-    if (g_files_list == 0)
+    if (s_files_list == 0)
     {
-        g_files_list = list_create();
-        g_files_list->auto_free = 1;
+        s_files_list = list_create();
+        s_files_list->auto_free = 1;
     }
-    list_clear(g_files_list);
+    list_clear(s_files_list);
     clipboard_get_files(data, data_size);
-    cItems = g_files_list->count;
+    cItems = s_files_list->count;
     bytes_after_header = cItems * 592 + 4;
     make_stream(s);
     init_stream(s, 64 + bytes_after_header);
@@ -356,7 +356,7 @@ clipboard_send_data_response_for_file(const char *data, int data_size)
     out_uint32_le(s, cItems);
     for (index = 0; index < cItems; index++)
     {
-        cfi = (struct cb_file_info *)list_get_item(g_files_list, index);
+        cfi = (struct cb_file_info *)list_get_item(s_files_list, index);
         flags = CB_FD_ATTRIBUTES | CB_FD_FILESIZE | CB_FD_WRITESTIME | CB_FD_PROGRESSUI;
         out_uint32_le(s, flags);
         out_uint8s(s, 32); /* reserved1 */
@@ -407,13 +407,13 @@ clipboard_send_file_size(int streamId, int lindex)
     int file_size;
     struct cb_file_info *cfi;
 
-    if (g_files_list == 0)
+    if (s_files_list == 0)
     {
-        LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_send_file_size: error g_files_list is nil");
+        LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_send_file_size: error s_files_list is nil");
         clipboard_send_filecontents_response_fail(streamId);
         return 1;
     }
-    cfi = (struct cb_file_info *)list_get_item(g_files_list, lindex);
+    cfi = (struct cb_file_info *)list_get_item(s_files_list, lindex);
     if (cfi == 0)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_send_file_size: error cfi is nil");
@@ -456,7 +456,7 @@ clipboard_request_file_size(int stream_id, int lindex)
     int rv;
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "clipboard_request_file_size:");
-    if (g_file_request_sent_type != 0)
+    if (s_file_request_sent_type != 0)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_request_file_size: warning, still waiting "
                   "for CB_FILECONTENTS_RESPONSE");
@@ -478,7 +478,7 @@ clipboard_request_file_size(int stream_id, int lindex)
     size = (int)(s->end - s->data);
     rv = send_channel_data(g_cliprdr_chan_id, s->data, size);
     free_stream(s);
-    g_file_request_sent_type = CB_FILECONTENTS_SIZE;
+    s_file_request_sent_type = CB_FILECONTENTS_SIZE;
     return rv;
 }
 
@@ -495,13 +495,13 @@ clipboard_send_file_data(int streamId, int lindex,
     char full_fn[256];
     struct cb_file_info *cfi;
 
-    if (g_files_list == 0)
+    if (s_files_list == 0)
     {
-        LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_send_file_data: error g_files_list is nil");
+        LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_send_file_data: error s_files_list is nil");
         clipboard_send_filecontents_response_fail(streamId);
         return 1;
     }
-    cfi = (struct cb_file_info *)list_get_item(g_files_list, lindex);
+    cfi = (struct cb_file_info *)list_get_item(s_files_list, lindex);
     if (cfi == 0)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_send_file_data: error cfi is nil");
@@ -573,7 +573,7 @@ clipboard_request_file_data(int stream_id, int lindex, int offset,
     LOG_DEVEL(LOG_LEVEL_DEBUG, "clipboard_request_file_data: stream_id=%d lindex=%d off=%d request_bytes=%d",
               stream_id, lindex, offset, request_bytes);
 
-    if (g_file_request_sent_type != 0)
+    if (s_file_request_sent_type != 0)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_request_file_data: warning, still waiting "
                   "for CB_FILECONTENTS_RESPONSE");
@@ -595,7 +595,7 @@ clipboard_request_file_data(int stream_id, int lindex, int offset,
     size = (int)(s->end - s->data);
     rv = send_channel_data(g_cliprdr_chan_id, s->data, size);
     free_stream(s);
-    g_file_request_sent_type = CB_FILECONTENTS_RANGE;
+    s_file_request_sent_type = CB_FILECONTENTS_RANGE;
     return rv;
 }
 
@@ -644,25 +644,25 @@ clipboard_process_file_response(struct stream *s, int clip_msg_status,
     int file_size;
 
     LOG_DEVEL(LOG_LEVEL_DEBUG, "clipboard_process_file_response:");
-    if (g_file_request_sent_type == CB_FILECONTENTS_SIZE)
+    if (s_file_request_sent_type == CB_FILECONTENTS_SIZE)
     {
-        g_file_request_sent_type = 0;
+        s_file_request_sent_type = 0;
         in_uint32_le(s, streamId);
         in_uint32_le(s, file_size);
         LOG_DEVEL(LOG_LEVEL_DEBUG, "clipboard_process_file_response: streamId %d "
                   "file_size %d", streamId, file_size);
         xfuse_file_contents_size(streamId, file_size);
     }
-    else if (g_file_request_sent_type == CB_FILECONTENTS_RANGE)
+    else if (s_file_request_sent_type == CB_FILECONTENTS_RANGE)
     {
-        g_file_request_sent_type = 0;
+        s_file_request_sent_type = 0;
         in_uint32_le(s, streamId);
         xfuse_file_contents_range(streamId, s->p, clip_msg_len - 4);
     }
     else
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "clipboard_process_file_response: error");
-        g_file_request_sent_type = 0;
+        s_file_request_sent_type = 0;
     }
     return 0;
 }
