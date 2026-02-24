@@ -1813,14 +1813,13 @@ devredir_file_read(struct state_read *fusep, tui32 DeviceId, tui32 FileId,
                    tui32 Length, tui64 Offset)
 {
     struct stream *s;
-    IRP           *irp;
     IRP           *new_irp;
     int            bytes;
 
     xstream_new(s, 1024);
 
     /* Check we've got an open IRP for this file already */
-    if ((irp = devredir_irp_find_by_fileid(FileId)) == NULL)
+    if (devredir_irp_find_by_fileid(FileId) == NULL)
     {
         LOG_DEVEL(LOG_LEVEL_ERROR, "no IRP found with FileId = %d", FileId);
         xfuse_devredir_cb_read_file(fusep, STATUS_UNSUCCESSFUL, NULL, 0);

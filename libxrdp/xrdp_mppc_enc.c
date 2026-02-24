@@ -560,7 +560,6 @@ compress_rdp_5(struct xrdp_mppc_enc *enc, tui8 *srcData, int len)
     tui32 data_end;
     tui8 byte_val;
 
-    crc = 0;
     opb_index = 0;
     bits_left = 8;
     copy_offset = 0;
